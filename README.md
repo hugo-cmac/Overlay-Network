@@ -1,17 +1,18 @@
 # Peer-to-Peer Overlay Network for Web Anonymization
+
 ###### Project of Telecommunication and Informatics 1
 
 ----
 
-### Git instrucoes:
+**Git instruções:**
 
-1. Git clone do repositorio
+1. Git clone do repositório.
 
 2. Dentro de .git/config, alterar o url de:
 
-..* https//:github.com/xxxx/Overlay-Network.git
-..* para
-..* ssh://git@github.com/xxxx/Overlay-Network.git
+	* https//:github.com/xxxx/Overlay-Network.git*
+* para
+	* ssh://git@github.com/xxxx/Overlay-Network.git*
 		
 3. Dentro da pagina do git, nas definicoes de conta, adicionar o par de chaves SSH.
 
