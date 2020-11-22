@@ -10,9 +10,9 @@
 
 2. Dentro de .git/config, alterar o url de:
 
-	* https//:github.com/xxxx/Overlay-Network.git*
+	* https//:github.com/xxxx/Overlay-Network.git
 * para
-	* ssh://git@github.com/xxxx/Overlay-Network.git*
+	* ssh://git@github.com/xxxx/Overlay-Network.git
 		
 3. Dentro da pagina do git, nas definicoes de conta, adicionar o par de chaves SSH.
 
