@@ -2,7 +2,6 @@
 
 ###### Project of Telecommunication and Informatics 1
 
-----
 
 **Git instruções:**
 
