@@ -44,6 +44,25 @@ struct pollfd  exitSocks [MAXFDS] = {0};
 //procedimento de sockv5/v4
 //procedimento de abertura de exitSocks(map para streams)
 
+class PIPE{
+    private:
+        int proxyS[2];
+        int proxyL[2];
+        int  exitN[2];
+    public:
+        PIPE(){
+            pipe(this->proxyS);
+            pipe(this->proxyL);
+            pipe(this->exitN);
+        }
+        ~PIPE(){
+            close(this->proxyS[0]);close(this->proxyS[1]);
+            close(this->proxyL[0]);close(this->proxyL[1]);
+            close(this->exitN[0]); close(this->exitN[1]);
+        }
+    
+};
+
 
 int tcpServerSocket(int port){
     int s = socket(AF_INET, SOCK_STREAM, 0);
