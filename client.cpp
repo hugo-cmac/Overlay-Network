@@ -5,6 +5,7 @@
 #include <string>
 #include <iterator>
 #include <cstring>
+#include <thread>
 
 //c libs
 #include <stdio.h>
@@ -18,6 +19,7 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <poll.h>
+#include <pthread.h>
 
 typedef unsigned char byte;
 
@@ -27,6 +29,7 @@ using namespace std;
 #define PACKET 1500
 
 
+
 enum DIRECTION {
     UP = 0,
     RIGHT,
@@ -34,34 +37,88 @@ enum DIRECTION {
     LEFT
 };
 
+enum CONTENTTYPE{
+    NEW = 0,
+    TALK,
+    END  
+};
+
+short availableNeighbor[4];
+short type;
+
 struct pollfd localSocks [MAXFDS] = {0};
 struct pollfd  exitSocks [MAXFDS] = {0};
+struct pollfd  neighbors [4]      = {0};
+
 
 //objeto para x509
 //objeto para echd
 //objeto para pipes         1B          1B            2b            1b                  2b                     2b                       
 //objeto para ler pacotes  <tp> <circuito 1byte > <saltos 4> <flag exit/local> <flag new/talk/end> <flag ip/domain/payload> <payload>
+//                                  
 //procedimento de sockv5/v4
 //procedimento de abertura de exitSocks(map para streams)
 
-class PIPE{
+
+class Protocol{
     private:
-        int proxyS[2];
-        int proxyL[2];
-        int  exitN[2];
+        byte buffer[PACKET] = {0};
+        short nb = 0;
+        short direction = -1;
+
+        short getRandomDirection(){
+            //i = (random de type)
+            //dir = availableNeighbor[i]
+            //adicionar dir a buffer
+            //decrementar saltos
+            return 0;
+        }
+
     public:
-        PIPE(){
-            pipe(this->proxyS);
-            pipe(this->proxyL);
-            pipe(this->exitN);
+        Protocol(long dir){
+            this->direction = (short)dir;
         }
-        ~PIPE(){
-            close(this->proxyS[0]);close(this->proxyS[1]);
-            close(this->proxyL[0]);close(this->proxyL[1]);
-            close(this->exitN[0]); close(this->exitN[1]);
+
+        ~Protocol();
+
+        int get(){
+            nb = recv(neighbors[this->direction].fd, this->buffer, PACKET, 0);
+            if (nb < 0){
+                //algum tipo de erro
+            }
+            return nb;
+        } 
+        int send(){
+            nb = send(neighbors[this->direction].fd, this->buffer, PACKET, 0);
+            if (nb < 0){
+                //algum tipo de erro
+            }
+
+
+            return nb;
         }
+
+        short getNextDirection(){
+            //  1byte    2bits  2bits       2bits         6bits      Resto
+            // <circuit> <new>  <hop> <ip/ipv6/dominio> <streamID> <Payload>
+            // <circuit> <talk> <hop>   <local/exit>    <streamID> <Payload>
+            // <circuit> <end>  <hop>   <exit/local>    <streamID>
+
+            short type = this->buffer[1];//saber se é new ou nao
+            
+            if (type == NEW){
+                short newDir = getRandomDirection();
+                return newDir;
+            }else{
+                this->direction = this->buffer[]
+            }
+
+            return 0;
+        }
+
     
 };
+
 
 
 int tcpServerSocket(int port){
@@ -150,21 +207,77 @@ void proxyLocalHandler(int pipe){
     }
 }
 
+void *forwardingProcedure(void *d){
+    long dir;
+    dir = (long)d;
+
+    Protocol packet(dir);
+
+    packet.get();
+
+    if (dir < 4){//pacote da rede overlay
+        
+        dir = packet.getNextDirection()//caso seja para encaminhar faz aqui a alteracao do salto
+
+            if (dir < 0) { //é para aqui
+
+                streamID = isExitNode(buffer)// devolve streamID
+                //adicionar aqui flag de fecho de descritor
+
+                if (streamID < 0) { // exit sock
+
+                    send(exitSocks[-streamID].fd, buffer)
+
+                } else { // local sock
+
+                    send(localSocks[streamID].fd, buffer)
+
+                }
+
+            } else {//é para encaminhar
+                packet.send();
+            }
+        
+    } else {//manager
+        //novo vizinho( dir, ip )
+        //estabelecer ligacao com o novo nó
+        //avisar qual a dir do novo vizinho
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+    pthread_exit(NULL);
+}
+
 //threadC
 void forwardingHandler(int manager, int pipe, int type){
     map<short, byte> stream;
 
-    struct pollfd neighbor[6];
     short result = -1, streamID = -1, dir;
 
     byte* buffer = (byte*)malloc(PACKET);
+    
+    pthread_t slave;
 
-
+    ///////////////////
+    // pthread_create(&threads[i], NULL, PrintHello, (void *)i);
+    //
+    ///////////////////
 
     //poll atributes
     while (1){
 
-        result = poll(neighbor, 6, -1);
+        result = poll(neighbors, 4, -1);
 
         if (result < 0){
             //algum tipo de erro
@@ -177,41 +290,10 @@ void forwardingHandler(int manager, int pipe, int type){
             if (neighbor[dir].revents & POLLIN){
 
                 if (dir < 5){//protocolo
+                    pthread_create(&slave, NULL, forwardingProcedure,(void*)dir);
+                    
 
-                    recv(neighbor[dir].fd, buffer, PACKET, 0);
-
-                    //desecriptar(dir, buffer)
-
-                    if (dir < 4){//pacote da rede overlay
-                        /*
-                        dir = getDirection(buffer)//caso seja para encaminhar faz aqui a alteracao do salto
-
-                        if (dir < 0) { //é para aqui
-
-                            streamID = isExitNode(buffer)// devolve streamID
-                            //adicionar aqui flag de fecho de descritor
-
-                            if (streamID < 0) { // exit sock
-
-                                send(exitSocks[-streamID].fd, buffer)
-
-                            } else { // local sock
-
-                                send(localSocks[streamID].fd, buffer)
-
-                            }
-
-                        } else {//é para encaminhar
-
-                            send(neighbor[dir].fd, buffer)
-
-                        }
-                        */
-                    } else {//manager
-                        //novo vizinho( dir, ip )
-                        //estabelecer ligacao com o novo nó
-                        //avisar qual a dir do novo vizinho
-                    }
+                    
                 } else {// pipe / local proxy / exit proxy
                     
                     read(pipe, &streamID, 2);//
