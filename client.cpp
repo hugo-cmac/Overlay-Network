@@ -16,6 +16,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <poll.h>
@@ -28,7 +29,10 @@ using namespace std;
 #define MAXFDS 64
 #define PACKET 1500
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> a3c892b5863c9b3c3bbb41ae927e165b26d3d0a5
 enum DIRECTION {
     UP = 0,
     RIGHT,
@@ -249,6 +253,110 @@ int tcpClientSocket(uint32_t ip, int port){
     return s;
 }
 
+void greetingsAnswer(int fd,  int auth_method){
+    byte answer[2];
+    answer[0] = 0x05;
+    if(auth_method){ // No method accepted
+        answer[1] = 0xff;
+    }else{ // Accept no_auth
+        answer[1] = 0x00;
+    }
+    send(fd, answer, 2, NULL);
+}
+
+int clientGreetings(int fd, int *version){
+    byte auths[64];
+    int nread = recv(fd, auths, 64, 0);
+    if(nread < 0){
+        // erro
+    }else{
+        if(auths[0] == 0x05){
+            if(auths[1] < 1){
+                // nao suporta nenhum tipo de autenticação
+                greetingsAnswer(fd, 1);
+            }else{
+                for(int i=2 ; i<nread; i++){
+                    if(auths[i] == 0x00){
+                        greetingsAnswer(fd, 0);
+                        return 0;
+                        break;
+                    }
+                }
+            }
+        }
+        greetingsAnswer(fd, 1);
+        return 1;
+    }
+
+}
+
+int handleClientRequest(int fd){ // 0x01: ipv4 | 0x03: Domain | 0x04: ipv6
+	byte command[4];
+	int nread = recv(fd, command, 4, NULL);
+	return command[3];
+}
+
+char *readIPV4(int fd){
+    char *ipv4 = (char *)malloc(sizeof(char) * 4);
+    if(recv(fd, ipv4, 4, NULL)<0){
+        //erro
+    }else{
+        return ipv4;
+    }
+}
+
+char *readDomain(int fd, byte *size){
+    byte s;
+    if(recv(fd, (void *)&s, 1, 0)<0){ // obter tamanho do dominio
+        // erro
+    }else{
+        char *domain = (char *)malloc((sizeof(char) * s) + 1);
+        if(recv(fd, (void*)domain, (int)s, NULL)<0){ // ler dominio
+            // erro
+        }else{
+            domain[s] = 0;
+            *size = s;
+            return domain;
+        }
+    }
+}
+
+char *readIPV6(int fd){
+    char *ipv6 = (char *)malloc(sizeof(char) * 16);
+    if(recv(fd, ipv6, 16, NULL)<0){
+        //erro
+    }else{
+        return ipv6;
+    }
+}
+
+void proxyServerProcedure(int proxyClient){
+    int version = 0;
+    if(clientGreetings(proxyClient, &version)){ // Receber primeiro pacote e responder
+        // deu erro
+    }
+    int tipo = handleClientRequest(proxyClient);
+    if(tipo == 0x01){ // IPV4
+        char *ipv4 = readIPV4(proxyClient);
+    }
+    if(tipo == 0x03){ // Domain
+        byte size;
+        char *address = readDomain(proxyClient, &size);
+    }
+    if(tipo == 0x04){ // IPV6
+        char *ipv6 = readIPV6(proxyClient);
+    }
+
+    short i = -1;
+    while (i++ < MAXFDS){
+        if (localSocks[i].fd == -1){
+            localSocks[i].fd = proxyClient;
+            localSocks[i].events = POLLIN;
+            break;
+        }
+    }
+}
+
 //threadA
 void proxyServerHandler(){
     int proxyServer = tcpServerSocket(9999);
@@ -262,6 +370,7 @@ void proxyServerHandler(){
         } else {
             //sockv5 connection handler
             ///....
+<<<<<<< HEAD
 
 
             //se tudo der correto
@@ -275,6 +384,10 @@ void proxyServerHandler(){
                     break;
                 }
             }
+=======
+            thread psvHandler(proxyServerProcedure, proxyClient);
+            psvHandler.detach();
+>>>>>>> a3c892b5863c9b3c3bbb41ae927e165b26d3d0a5
             //sq fazer algo
         }
     }
@@ -350,7 +463,6 @@ void forwardingProcedure(short dir){
         //estabelecer ligacao com o novo nó
         //avisar qual a dir do novo vizinho
     }
-
 }
 
 //threadC
