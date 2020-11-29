@@ -29,10 +29,6 @@ using namespace std;
 #define MAXFDS 64
 #define PACKET 1500
 
-<<<<<<< HEAD
-
-=======
->>>>>>> a3c892b5863c9b3c3bbb41ae927e165b26d3d0a5
 enum DIRECTION {
     UP = 0,
     RIGHT,
@@ -370,7 +366,7 @@ void proxyServerHandler(){
         } else {
             //sockv5 connection handler
             ///....
-<<<<<<< HEAD
+
 
 
             //se tudo der correto
@@ -384,10 +380,8 @@ void proxyServerHandler(){
                     break;
                 }
             }
-=======
             thread psvHandler(proxyServerProcedure, proxyClient);
             psvHandler.detach();
->>>>>>> a3c892b5863c9b3c3bbb41ae927e165b26d3d0a5
             //sq fazer algo
         }
     }
