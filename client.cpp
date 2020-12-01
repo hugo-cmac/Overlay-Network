@@ -417,13 +417,15 @@ int clientGreetings(int fd, int *version){
 
 int handleClientRequest(int fd){ // 0x01: ipv4 | 0x03: Domain | 0x04: ipv6
 	byte command[4];
-	int nread = recv(fd, command, 4, 0);
+    if (recv(fd, command, 4, 0) < 0){
+        //erro
+    }
 	return command[3];
 }
 
 byte *readIPV4(int fd){
     byte* ipv4 = (byte*)malloc(4);
-    if(recv(fd, ipv4, 4, 0)<0){
+    if(recv(fd, ipv4, 4, 0) < 0){
         //erro
     }
     return ipv4;  
@@ -489,14 +491,6 @@ void proxyServerHandler(){
             //algum tipo de erro
             close(proxyClient);
         } else {
-            //sockv5 connection handler
-            ///....
-
-
-
-            //se tudo der correto
-            findEmpty(localSocks, proxyClient);
-            
             thread psvHandler(proxyServerProcedure, proxyClient);
             psvHandler.detach();
             //sq fazer algo
