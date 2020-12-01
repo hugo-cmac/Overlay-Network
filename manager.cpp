@@ -53,7 +53,7 @@ class Client{
             this->coord = coord;
         }
 
-        coordinates getCOords(){
+        coordinates getCoords(){
             return coord;
         }
 
