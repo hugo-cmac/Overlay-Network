@@ -7,6 +7,7 @@
 #include <cstring>
 #include <thread>
 
+
 //c libs
 #include <stdio.h>
 #include <stdlib.h>
@@ -42,17 +43,24 @@ enum CONTENTTYPE{
     END  
 };
 
-byte availableNeighbor[4];//var[0]=01/var[1]=10
+
+short availableNeighbor[4] = {0};//var[00]=0/var[01]=1/var[10]=1/var[11]=0
 short type;//=2 vertice
 
 struct pollfd localSocks [MAXFDS] = {0};
 struct pollfd  exitSocks [MAXFDS] = {0};
 struct pollfd  neighbors [4]      = {0};
 
-map<pair<unsigned int, short>, byte> streamIdentifier;
-map<byte, pair<unsigned int, short>> pathIdentifier;
+//      < vector,  streamID >, streamID
+map<pair<unsigned int, short>, short> streamIdentifier;
 
-byte path[MAXFDS];
+//  streamID,  < vector,  streamID >
+map<short, pair<unsigned int, short>> pathIdentifier;
+
+unsigned int path[MAXFDS] = {0};
+
+
+unsigned int timeR = time(NULL);
 
 //objeto para x509
 //objeto para echd
@@ -62,10 +70,28 @@ byte path[MAXFDS];
 //procedimento de sockv5/v4
 //procedimento de abertura de exitSocks(map para streams)
 
+int random(int n){
+    timeR++;
+    srand( timeR);
+    return rand() % n;
+}
+
+void printBinary(byte b){
+    short i = 8;
+    while(i--){
+        if (((b>>i) & 0x01) == 1){
+            printf("1 ");
+        }else{
+            printf("0 ");
+        }
+    } 
+    printf("\n");
+}
+
 
 class Protocol{
     private:
-        byte* buffer = NULL;
+        byte buffer[PACKET] = {0};
         byte mask = 0x03;//0xfc
 
         //byte circuit = 0;
@@ -74,59 +100,56 @@ class Protocol{
         byte direction = -1;
 
         byte getRandomDirection(byte hop){
-            srand( time( NULL));
-            int i = rand() % type;
+            int i = random(type);//para tras impossivel
 
-            byte dir = availableNeighbor[i];
+            while(!availableNeighbor[i]){
+                if (this->direction == i){
+                    i = random(type);
+                }
+            }
+            byte dir = i;
             this->buffer[0] |= (dir & this->mask)<<(hop<<1);
         
             return dir;
         }
 
-        byte getNewPath(byte circuit){
-            int dir[3] = {
-                (circuit>>6) & mask,
-                (circuit>>4) & mask,
-                (circuit>>2) & mask
-            };
+        byte getNewPath(byte vector[4]){
+            int dir[3];
+            int f = 0, s = 0, t = 0;
 
-            srand( time( NULL));
-            int i = rand() % 6;
-            byte newCircuit = 0;
-
-            switch(i){
-                case 0:
-                    newCircut = dir[0]<<6 | dir[1]<<4 | dir[2]<<2 | 3;
-                    break;
-                case 1:
-                    newCircut = dir[0]<<6 | dir[2]<<4 | dir[1]<<2 | 3;
-                    break;
-                case 2:
-                    newCircut = dir[1]<<6 | dir[0]<<4 | dir[2]<<2 | 3;
-                    break;
-                case 3:
-                    newCircut = dir[1]<<6 | dir[2]<<4 | dir[0]<<2 | 3;
-                    break;
-                case 4:
-                    newCircut = dir[2]<<6 | dir[0]<<4 | dir[1]<<2 | 3;
-                    break;
-                case 5:
-                    newCircut = dir[2]<<6 | dir[1]<<4 | dir[0]<<2 | 3;
-                    break;
+            while(f < 4){
+                if (vector[f]){
+                    vector[f] -= 1;
+                    dir[s++] = f;
+                }else{
+                    f++;
+                }
             }
+            
+            f = random(3);
+            while(!availableNeighbor[dir[f]]){
+                f = random(3);
+            }
+            printf("f = %d\n", f);
+
+            s = random(3);
+            while(s == f){
+                s = random(3);
+            }
+            printf("s = %d\n", s);
+
+            t = 3 - (f + s);
+
+            printf("t = %d\n", t);
+            byte newCircuit = dir[f]<<6 | dir[s]<<4 | dir[t]<<2 | 3;
+
             return newCircuit;
         }
 
     public:
         Protocol(short dir){
-            this->direction = dir;
-            
-            this->buffer = (byte*) malloc(PACKET);
-            
+            this->direction = dir; 
         }
-
-        //~Protocol();
-
 
         //PACKET RELATED 
         void setPacket(byte* buffer, short n){
@@ -163,26 +186,43 @@ class Protocol{
             byte hops = (this->buffer[0]) & this->mask;//numero de hops
 
             if (hops == 0){
-                if (type == NEW){//saber se é new ou nao
-                    return 1;
-                }else{
-                    //getstream
-                    return 2;
+                switch(type){
+                    case NEW:
+                        return 1;
+                    case TALK:
+                        return 2;
+                    case END:
+                        return 3;
                 }
             }else{
                 if (type == NEW){//saber se é new ou nao
                     this->direction = getRandomDirection(hops);
                 }else{
                     this->direction = (this->buffer[0]>>(hops<<1)) & mask;
+                    //recalc
                 }
                 hops -= 1;//decrementar saltos
                 this->buffer[0] = (this->buffer[0] & 0xfc) | (hops & mask);
-                return 0;
             }
+            return 0;
         }
-        byte getCircuit(){
-            return this->buffer[0] & 0xfc;
+
+        unsigned int getVector(){
+            unsigned int vector = 0;    
+            int temp=0;
+                    
+            temp = (this->buffer[0]>>2) & mask;
+            vector += 1<<(temp<<3);
+
+            temp = (this->buffer[0]>>4) & mask;
+            vector += 1<<(temp<<3);
+                    
+            temp = (this->buffer[0]>>6) & mask;
+            vector += 1<<(temp<<3);
+
+            return vector;
         }
+
         short getStreamID(){
             short streamID = this->buffer[2] & 0x3f;
             
@@ -195,10 +235,17 @@ class Protocol{
             return false;
         }
 
+        byte* getPayload(){
+            return &buffer[3];
+        }
+
         //PACKET CREATION
-        void build(short streamID, byte circuit, bool exit){
+        void build(short streamID, unsigned int vector, bool exit){
             
-            circuit = getNewPath(circuit);
+            byte circuit = getNewPath((byte*) &vector);
+            
+            printBinary(circuit);
+
             this->buffer[0] = circuit;
             
             this->buffer[1] = 1<<6;
@@ -211,9 +258,72 @@ class Protocol{
             getNextDirection();
         }
 
+        void end(short streamID, unsigned int vector, bool exit){
+            memset(buffer, 0, PACKET);
+            byte circuit = getNewPath((byte*) &vector);
+            
+            printBinary(circuit);
+
+            this->buffer[0] = circuit;
+            
+            this->buffer[1] = 2<<6;
+            
+            if (exit)
+                this->buffer[1] |= 1<<4;
+
+            this->buffer[2] = streamID & 0x3f;
+
+            getNextDirection();
+        }
+
 };
 
+unsigned int vectorCalc(byte circuit){
+    unsigned int vector = 0;    
+    int temp=0;
+                    
+    temp = (circuit>>2) & 0x03;
+    vector += 1<<(temp<<3);
 
+    temp = (circuit>>4) & 0x03;
+    vector += 1<<(temp<<3);
+                    
+    temp = (circuit>>6) & 0x03;
+    vector += 1<<(temp<<3);
+
+    return vector;
+}
+
+unsigned int invert(unsigned int vector){
+    
+    unsigned int inverse = 0;
+
+    inverse += vector>>16 & 0x03;
+    inverse += vector>>24 & 0x03;
+    inverse += vector>>0  & 0x03;
+    inverse += vector>>8  & 0x03;
+    
+    return 0;
+}
+
+short findEmpty(struct pollfd* list, int fd){
+    short i = -1;
+    while (i++ < MAXFDS){
+        if (list[i].fd == -1){   
+            list[i].fd = fd;
+            list[i].events = POLLIN;
+            return i;
+        }
+    }
+    return 0;
+}
+
+void closeLocal(short streamID){
+
+}
+void closeExit(pair<unsigned int,short> p){
+    
+}
 
 int tcpServerSocket(int port){
     int s = socket(AF_INET, SOCK_STREAM, 0);
@@ -241,7 +351,7 @@ int tcpClientSocket(uint32_t ip, int port){
     addr.sin_addr.s_addr = ip;
     //inet_pton(AF_INET, ip, &addr.sin_addr); para char*
 
-    if (connect(s, (struct sockaddr *)&addr,sizeof(addr)) < 0){
+    if (connect(s, (struct sockaddr *)&addr, sizeof(addr)) < 0){
         perror("Error connecting to server");
         return -1;
     }
@@ -257,7 +367,7 @@ void greetingsAnswer(int fd,  int auth_method){
     }else{ // Accept no_auth
         answer[1] = 0x00;
     }
-    send(fd, answer, 2, NULL);
+    send(fd, answer, 2, 0);
 }
 
 int clientGreetings(int fd, int *version){
@@ -281,49 +391,47 @@ int clientGreetings(int fd, int *version){
             }
         }
         greetingsAnswer(fd, 1);
-        return 1;
     }
-
+    return 1;
 }
 
 int handleClientRequest(int fd){ // 0x01: ipv4 | 0x03: Domain | 0x04: ipv6
 	byte command[4];
-	int nread = recv(fd, command, 4, NULL);
+	int nread = recv(fd, command, 4, 0);
 	return command[3];
 }
 
 char *readIPV4(int fd){
-    char *ipv4 = (char *)malloc(sizeof(char) * 4);
-    if(recv(fd, ipv4, 4, NULL)<0){
+    char *ipv4 = (char *)malloc(4);
+    if(recv(fd, ipv4, 4, 0)<0){
         //erro
-    }else{
-        return ipv4;
     }
+    return ipv4;  
 }
 
 char *readDomain(int fd, byte *size){
     byte s;
-    if(recv(fd, (void *)&s, 1, 0)<0){ // obter tamanho do dominio
+    if(recv(fd, &s, 1, 0) < 0){ // obter tamanho do dominio
         // erro
     }else{
-        char *domain = (char *)malloc((sizeof(char) * s) + 1);
-        if(recv(fd, (void*)domain, (int)s, NULL)<0){ // ler dominio
+        char *domain = (char *)malloc((int)s + 1);
+        if(recv(fd, domain, (int)s, 0) < 0){ // ler dominio
             // erro
         }else{
-            domain[s] = 0;
+            domain[s] = '\0';
             *size = s;
             return domain;
         }
     }
+    return NULL;
 }
 
 char *readIPV6(int fd){
-    char *ipv6 = (char *)malloc(sizeof(char) * 16);
-    if(recv(fd, ipv6, 16, NULL)<0){
-        //erro
-    }else{
-        return ipv6;
+    char *ipv6 = (char *)malloc(16);
+    if(recv(fd, ipv6, 16, 0)<0){
+        //errod
     }
+    return ipv6;
 }
 
 void proxyServerProcedure(int proxyClient){
@@ -370,16 +478,8 @@ void proxyServerHandler(){
 
 
             //se tudo der correto
-
-            short i = -1;
-            while (i++ < MAXFDS){
-                if (localSocks[i].fd == -1){
-                    
-                    localSocks[i].fd = proxyClient;
-                    localSocks[i].events = POLLIN;
-                    break;
-                }
-            }
+            findEmpty(localSocks, proxyClient);
+            
             thread psvHandler(proxyServerProcedure, proxyClient);
             psvHandler.detach();
             //sq fazer algo
@@ -391,7 +491,7 @@ void proxyLocalProcedure(byte* buffer, short n, short streamID){
     Protocol packet(-1);
     packet.setPacket(buffer, n);
 
-    packet.build(streamID, path[streamID], false);
+    packet.build(streamID, path[streamID], true);
     packet.forward();
 }
 
@@ -420,38 +520,65 @@ void proxyLocalHandler(){
     }
 }
 
+int webConnect(){
+    return 0;
+}
+
 void forwardingProcedure(short dir){
     
     short streamID = 0;
-
-    Protocol packet(dir);
-    packet.get();
-
     if (dir < 4){//pacote da rede overlay
+
+        Protocol packet(dir);
+        packet.get();
         
         dir = packet.getNextDirection();//caso seja para encaminhar faz aqui a alteracao do salto
 
-        if (dir) { //é para aqui
+        streamID = packet.getStreamID();
 
-            streamID = packet.getStreamID();
-            if (dir == 1){
-                //abrir exitsocket
+        switch(dir){
+            case 0://é para encaminhar
+                packet.forward();
+                break; 
+            case 1:{//new exitSocket
+                pair<unsigned int,short> p(packet.getVector(), streamID);
+                pair<unsigned int,short> r(invert(packet.getVector()), streamID);
 
-            }else{
-                if (packet.isExitNode()){
-                    //procura no mapa por circuit,streamID == exitstreamID
-                    send(exitSocks[1].fd, NULL, PACKET, 0);
+                int webSocket = webConnect();
+                if (webSocket > 0){
+                    short s = findEmpty(exitSocks, webSocket);
+                    streamIdentifier[p] = s;
+                    pathIdentifier[s] = r;
                 }else{
-                    if (path[streamID] == 2)
-                        path[streamID] = packet.getCircuit();
-                    
+                    packet.end(streamID, r.first, false);
+                    packet.forward();
+                }
+                break;
+            }
+            case 2://talk
+                if (packet.isExitNode()){
+                    pair<unsigned int,short> p(packet.getVector(), streamID);
+
+                    send(exitSocks[streamIdentifier[p]].fd, NULL, PACKET, 0);
+                }else{
+                    if (path[streamID] == 0)
+                        path[streamID] = invert(packet.getVector());
                     send(localSocks[streamID].fd, NULL, PACKET, 0);
                 }
-            }
-        } else {//é para encaminhar
-            packet.forward();
-        }
-        
+                break;
+            case 3://end
+                if (packet.isExitNode()){
+                    pair<unsigned int,short> p(packet.getVector(), streamID);
+                    //pair<unsigned int, short> p = {}
+                    //streamIdentifier[{}];
+                    //pathIdentifier
+                    //pair 
+                    closeExit(p);
+                }else{
+                    closeLocal(streamID);
+                }
+                break;
+        }        
     } else {//manager
         //novo vizinho( dir, ip )
         //estabelecer ligacao com o novo nó
@@ -460,19 +587,13 @@ void forwardingProcedure(short dir){
 }
 
 //threadC
-void forwardingHandler(int manager, int pipe, int type){
+void forwardingHandler(int manager, int type){
     
 
     short result = -1, streamID = -1, dir;
 
     byte* buffer = (byte*)malloc(PACKET);
     
-   
-
-    ///////////////////
-    // pthread_create(&threads[i], NULL, PrintHello, (void *)i);
-    //
-    ///////////////////
 
     //poll atributes
     while (1){
@@ -523,8 +644,20 @@ void exitNodeHandler(){
 
 
 int main(int argc, char const *argv[]){
-    memset(path, 2, MAXFDS);
+    
+    type = 2;
+    availableNeighbor[1] = 1;
+    availableNeighbor[2] = 1;
        
+    Protocol packet(-1);
+    byte buffer[1400] = {0};
+
+    packet.setPacket(buffer, 1400);
+    printBinary(0xf4);
+    unsigned int v = vectorCalc(0xf4);
+    packet.build(1, v, true); // 8 4 2 1 8 4 2 1
+                              // 1 1 1 1 0 1 0 0
+                              // 0xf4
 
     //1 - abrir server socket 
     //2 - ligar ao manager, atraves de ip pre definido
