@@ -46,7 +46,9 @@ enum CONTENTTYPE{
 
 short availableNeighbor[4] = {0};
 short type;
-struct pollfd  neighbors [4] = {0};
+struct pollfd  neighbors [5] = {0}; 
+
+
 
 
 
@@ -96,6 +98,92 @@ void printBinary(byte b){
     printf("\n");
 }
 
+class ManagerHandler{
+    private:
+        uint32_t managerIP;
+        int managerPort;
+        int dir;
+        byte packet[PACKET] = {0};
+
+    public:
+        ManagerHandler(uint32_t ip, int port){
+            this->managerIP = ip;
+            this->managerPort;
+            this->dir = 4;
+            neighbors[this->dir].fd = tcpClientSocket(this->managerIP, this->managerPort);
+        }
+
+        byte* getPacket(){
+            return this->packet;
+        }
+        
+        int getNodeTypeDir(){
+            return((this->packet[0] && 0xc)>>2);
+        }
+
+        int getPacketType(){
+            return (this->packet[0] && 0x03);
+        }
+
+        void buildRegisterPacket(){
+            this->packet[0] = 0;
+            this->packet[1] = 1; //certificado
+          
+        }
+
+        void buildNeighborPacket(int dir){
+            this->packet[0] = 3;
+            this->packet[1] = this->invertDir(dir);
+        }
+
+        void sendManager(){
+            if(send(neighbors[this->dir].fd, this->packet, sizeof(this->packet), 0)){
+                memset(this->packet, 0, sizeof(this->packet));
+            }else{
+                //erro
+            }
+        }
+
+        void sendNeighbor(int dir){
+            if(send(neighbors[dir].fd, this->packet, sizeof(this->packet), 0)){
+                memset(this->packet, 0, sizeof(this->packet));
+            }else{
+                //erro
+            }
+        }
+
+        void get(){
+            memset(this->packet, 0, sizeof(this->packet));
+            if(recv(neighbors[this->dir].fd, this->packet, sizeof(this->packet), 0)){
+                
+            }else{
+                //erro
+            }
+        }
+
+
+        int invertDir(int dir){
+        switch (dir){
+                case UP:
+                    return DOWN;
+                    break;
+
+                case DOWN:
+                    return UP;
+                    break;
+
+                case RIGHT:
+                    return LEFT;
+                    break;
+
+                case LEFT:
+                    return RIGHT;
+                    break;
+        }
+}
+        
+
+};
 
 class Protocol{
     private:
@@ -330,6 +418,7 @@ short findEmpty(struct pollfd* list, int fd){
     return 0;
 }
 
+
 void closeLocal(short streamID){
     close(localSocks[streamID].fd);
     localSocks[streamID].fd = -1;
@@ -362,6 +451,7 @@ int tcpServerSocket(int port){
         return -1;
     }
     return s;
+    
 }
 
 int tcpClientSocket(uint32_t ip, int port){
@@ -536,7 +626,7 @@ int webConnect(){
 }
 
 void forwardingProcedure(short dir){
-    
+
     short streamID = 0;
     if (dir < 4){//pacote da rede overlay
 
@@ -583,6 +673,24 @@ void forwardingProcedure(short dir){
                 break;
         }        
     } else {//manager
+
+        ManagerHandler manager(1, 4420);
+        manager.buildRegisterPacket();
+        manager.sendManager();
+        manager.get();
+        if(manager.getPacketType() == 1){
+            type = manager.getNodeTypeDir();
+            manager.get();
+            if(manager.getPacketType() == 2){
+                uint32_t neighborIP = 0;
+                int dir = manager.getNodeTypeDir();
+                memcpy(&neighborIP, &manager.getPacket()[1], 4);
+                int socketfd = tcpClientSocket(neighborIP, 4444);
+                neighbors[dir].fd = socketfd;
+                manager.buildNeighborPacket(dir);
+                manager.sendNeighbor(dir);
+            }
+        }
         //novo vizinho( dir, ip )
         //estabelecer ligacao com o novo nó
         //avisar qual a dir do novo vizinho
@@ -657,6 +765,8 @@ int main(int argc, char const *argv[]){
     availableNeighbor[2] = 1;
        
     Protocol packet(-1);
+    ManagerHandler manager(1, 4420);
+    
     byte buffer[1400] = {0};
 
     packet.setPacket(buffer, 1400);
@@ -665,6 +775,7 @@ int main(int argc, char const *argv[]){
     packet.build(1, v, true); // 8 4 2 1 8 4 2 1
                               // 1 1 1 1 0 1 0 0
                               // 0xf4
+    
 
     //1 - abrir server socket 
     //2 - ligar ao manager, atraves de ip pre definido
