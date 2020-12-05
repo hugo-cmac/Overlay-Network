@@ -278,6 +278,100 @@ class Protocol{
 
 };
 
+class Socks{
+    private:
+        byte buffer[300] = {0};
+        byte ip[4] = {0};
+        byte domain[255] = {0};
+        byte domain_size = 0;
+        int fd;
+        unsigned short port = 0;
+
+        void greetingsAnswer(int fd, int auth_method){
+            byte answer[2];
+            answer[0] = 0x05;
+            if(auth_method){ // No method accepted
+                answer[1] = 0xff;
+            }else{ // Accept no_auth
+                answer[1] = 0x00;
+            }
+            send(fd, answer, 2, 0);
+        }
+
+    public:
+        Socks(int fd){
+            this->fd = fd;
+        }
+
+        void handleGreetingPacket(){
+            int nread = recv(this->fd, this->buffer, 64, 0);
+            printf("Versao: %d\n", this->buffer[0]);
+            if(nread < 0){
+                // erro
+            }else{
+                if(this->buffer[0] == 0x05){
+                    if(this->buffer[1] < 1){
+                        // nao suporta nenhum tipo de autenticação
+                        greetingsAnswer(fd, 1);
+                    }else{
+                        for(int i=2 ; i<nread; i++){
+                            if(this->buffer[i] == 0x00){
+                                greetingsAnswer(fd, 0);
+                                memset(this->buffer, 0, 64);
+                                // return 0;
+                                break;
+                            }
+                        }
+                    }
+                }
+                memset(this->buffer, 0, 64);
+                greetingsAnswer(fd, 1);
+            }
+            // return 1;
+        }
+        
+        int handleConnectionReq(){ // Ler pacote Client connection request 
+	        int nread;
+            if(nread = recv(this->fd, this->buffer, sizeof(this->buffer), 0) < 0){
+                //erro
+            }else{
+                if(this->buffer[3] == 0x01){ // IPV4
+                    memcpy(this->ip, &this->buffer[4], 4);
+                    this->port = buffer[8] | buffer[9] << 8;
+                    // printf(" %d.%d.%d.%d \n", this->ip[0], this->ip[1], this->ip[2], this->ip[3]);
+                    memset(this->buffer, 0, nread);
+                    return 0;
+                }
+                if(this->buffer[3] == 0x03){ // Domain
+                    memcpy(this->domain, &this->buffer[5], this->buffer[4]);
+                    domain_size = this->buffer[4];
+                    memset(this->buffer, 0, nread);
+                    // for(int i = 0; i < 255; i++){
+                    //     printf("%c", this->domain);
+                    // }
+                    return 1;
+                }
+            }
+            return -1;
+        }
+
+        byte* getIP(){
+            return ip;
+        }
+
+        unsigned short getPort(){
+            return port;
+        }
+
+        byte* getDomain(){
+            return domain;
+        }
+
+        byte getDomainSize(){
+            return domain_size;
+        }
+};
+
 unsigned int vectorCalc(byte circuit){
     unsigned int vector = 0;    
     int temp=0;
@@ -359,111 +453,28 @@ int tcpClientSocket(uint32_t ip, int port){
     return s;
 }
 
-void greetingsAnswer(int fd,  int auth_method){
-    byte answer[2];
-    answer[0] = 0x05;
-    if(auth_method){ // No method accepted
-        answer[1] = 0xff;
-    }else{ // Accept no_auth
-        answer[1] = 0x00;
-    }
-    send(fd, answer, 2, 0);
-}
-
-int clientGreetings(int fd, int *version){
-    byte auths[64];
-    int nread = recv(fd, auths, 64, 0);
-    if(nread < 0){
-        // erro
-    }else{
-        if(auths[0] == 0x05){
-            if(auths[1] < 1){
-                // nao suporta nenhum tipo de autenticação
-                greetingsAnswer(fd, 1);
-            }else{
-                for(int i=2 ; i<nread; i++){
-                    if(auths[i] == 0x00){
-                        greetingsAnswer(fd, 0);
-                        return 0;
-                        break;
-                    }
-                }
-            }
-        }
-        greetingsAnswer(fd, 1);
-    }
-    return 1;
-}
-
-int handleClientRequest(int fd){ // 0x01: ipv4 | 0x03: Domain | 0x04: ipv6
-	byte command[4];
-	int nread = recv(fd, command, 4, 0);
-	return command[3];
-}
-
-char *readIPV4(int fd){
-    char *ipv4 = (char *)malloc(4);
-    if(recv(fd, ipv4, 4, 0)<0){
-        //erro
-    }
-    return ipv4;  
-}
-
-char *readDomain(int fd, byte *size){
-    byte s;
-    if(recv(fd, &s, 1, 0) < 0){ // obter tamanho do dominio
-        // erro
-    }else{
-        char *domain = (char *)malloc((int)s + 1);
-        if(recv(fd, domain, (int)s, 0) < 0){ // ler dominio
-            // erro
-        }else{
-            domain[s] = '\0';
-            *size = s;
-            return domain;
-        }
-    }
-    return NULL;
-}
-
-char *readIPV6(int fd){
-    char *ipv6 = (char *)malloc(16);
-    if(recv(fd, ipv6, 16, 0)<0){
-        //errod
-    }
-    return ipv6;
-}
-
 void proxyServerProcedure(int proxyClient){
-    int version = 0;
-    if(clientGreetings(proxyClient, &version)){ // Receber primeiro pacote e responder
-        // deu erro
+    Socks clientsock(proxyClient);
+    clientsock.handleGreetingPacket();
+    int tipo = clientsock.handleConnectionReq(); // retorna se é ip ou domain
+    if(tipo == 0){ // É ip
+        byte *ip = clientsock.getIP();
+        unsigned short port = clientsock.getPort();
+        printf("%d.%d.%d.%d:%d \n", ip[0], ip[1], ip[2], ip[3], port);
     }
-    int tipo = handleClientRequest(proxyClient);
-    if(tipo == 0x01){ // IPV4
-        char *ipv4 = readIPV4(proxyClient);
-    }
-    if(tipo == 0x03){ // Domain
-        byte size;
-        char *address = readDomain(proxyClient, &size);
-    }
-    if(tipo == 0x04){ // IPV6
-        char *ipv6 = readIPV6(proxyClient);
+    if(tipo == 1){ // É domain
+        byte *domain = clientsock.getDomain();
+        printf("%s\n", domain);
+        clientsock.getDomainSize();
     }
 
-    short i = -1;
-    while (i++ < MAXFDS){
-        if (localSocks[i].fd == -1){
-            localSocks[i].fd = proxyClient;
-            localSocks[i].events = POLLIN;
-            break;
-        }
-    }
+    // lock.aquire() ?
+    // short streamid = findEmpty(localSocks, proxyClient);
 }
 
 //threadA
 void proxyServerHandler(){
-    int proxyServer = tcpServerSocket(9999);
+    proxyServer = tcpServerSocket(9999);
     while (1){
         struct sockaddr_in client = {0};
         socklen_t len = sizeof(struct sockaddr_in);
@@ -472,14 +483,9 @@ void proxyServerHandler(){
             //algum tipo de erro
             close(proxyClient);
         } else {
-            //sockv5 connection handler
+            //sockv5 connection hnt n = andler
             ///....
 
-
-
-            //se tudo der correto
-            findEmpty(localSocks, proxyClient);
-            
             thread psvHandler(proxyServerProcedure, proxyClient);
             psvHandler.detach();
             //sq fazer algo
@@ -671,8 +677,8 @@ int main(int argc, char const *argv[]){
     //  msg vinda do manager ip/dir
     //  o meu vizinho da direito bazou
 
-
-
+    thread startthread(proxyServerHandler);
+    startthread.join();
 
     // 0 - 0 - 0 - x
     // 0 - 0 - 0 -
