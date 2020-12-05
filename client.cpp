@@ -27,7 +27,7 @@ typedef unsigned char byte;
 
 using namespace std;
 
-#define MAXFDS 64
+#define MAXFDS 32
 #define PACKET 1500
 
 enum DIRECTION {
@@ -44,30 +44,39 @@ enum CONTENTTYPE{
 };
 
 
-short availableNeighbor[4] = {0};//var[00]=0/var[01]=1/var[10]=1/var[11]=0
-short type;//=2 vertice
+short availableNeighbor[4] = {0};
+short type;
+struct pollfd  neighbors [4] = {0};
 
-struct pollfd localSocks [MAXFDS] = {0};
-struct pollfd  exitSocks [MAXFDS] = {0};
-struct pollfd  neighbors [4]      = {0};
 
-//      < vector,  streamID >, streamID
-map<pair<unsigned int, short>, short> streamIdentifier;
 
-//  streamID,  < vector,  streamID >
-map<short, pair<unsigned int, short>> pathIdentifier;
+//////////////////////////////////////////////////////////////////////////////////////
+// Exit Sockets                                                                     //
+struct pollfd  exitSocks [MAXFDS] = {0};                                            //
+// < < vector, streamID >, streamID>                    //////  //  //  // ///////  //
+map<pair<unsigned int, short>, short> streamIdentifier; //       ////   //   //     //
+                                                        /////     //    //   //     //
+// < streamID, < vector, streamID >                     //       ////   //   //     //
+map<short, pair<unsigned int, short>> pathIdentifier;   //////  //  //  //   //     //
+//////////////////////////////////////////////////////////////////////////////////////
 
-unsigned int path[MAXFDS] = {0};
+
+//////////////////////////////////////////////////////////////////////////////////////
+                                                                                    //
+// Path to exit node                            //     ////// //////  ////  //      //
+unsigned int path[MAXFDS] = {0};                //     //  // //     //  // //      //
+                                                //     //  // //     ////// //      //
+// Local Sockets                                //     //  // //     //  // //      //
+struct pollfd localSocks [MAXFDS] = {0};        ////// ////// ////// //  // //////  //
+//////////////////////////////////////////////////////////////////////////////////////
+
 
 
 unsigned int timeR = time(NULL);
 
 //objeto para x509
 //objeto para echd
-//                          1B          1B            2b            1b                  2b                     2b                       
-//objeto para ler pacotes  <tp> <circuito 1byte > <saltos 4> <flag exit/local> <flag new/talk/end> <flag ip/domain/payload> <payload>
-//                                  
-//procedimento de sockv5/v4
+
 //procedimento de abertura de exitSocks(map para streams)
 
 int random(int n){
@@ -79,11 +88,10 @@ int random(int n){
 void printBinary(byte b){
     short i = 8;
     while(i--){
-        if (((b>>i) & 0x01) == 1){
+        if (((b>>i) & 0x01) == 1)
             printf("1 ");
-        }else{
+        else
             printf("0 ");
-        }
     } 
     printf("\n");
 }
@@ -92,10 +100,7 @@ void printBinary(byte b){
 class Protocol{
     private:
         byte buffer[PACKET] = {0};
-        byte mask = 0x03;//0xfc
-
-        //byte circuit = 0;
-
+        
         short nb = 0;
         byte direction = -1;
 
@@ -108,7 +113,7 @@ class Protocol{
                 }
             }
             byte dir = i;
-            this->buffer[0] |= (dir & this->mask)<<(hop<<1);
+            this->buffer[0] |= (dir & 0x03)<<(hop<<1);
         
             return dir;
         }
@@ -130,17 +135,14 @@ class Protocol{
             while(!availableNeighbor[dir[f]]){
                 f = random(3);
             }
-            printf("f = %d\n", f);
 
             s = random(3);
             while(s == f){
                 s = random(3);
             }
-            printf("s = %d\n", s);
 
             t = 3 - (f + s);
 
-            printf("t = %d\n", t);
             byte newCircuit = dir[f]<<6 | dir[s]<<4 | dir[t]<<2 | 3;
 
             return newCircuit;
@@ -175,15 +177,15 @@ class Protocol{
 
         //PACKET PARAMETER RELATED
         short getNextDirection(){
-            //   6bit     2bits | 2bits        2bits       |    6bits    |   Resto
-            // <circuito> <hop> | <new>  <ip/ipv6/dominio> |  <streamID> | <Payload>
+            //   6bit     2bits | 2bits     1bits(0/1)      5bits    |   Resto
+            // <circuito> <hop> | <new>    <ip/dominio>   <streamID> | <Payload>
 
-            //                    2bits      2bit(0/1)     |    6bits    |   Resto
-            // <circuito> <hop> | <talk>   <local/exit>    |  <streamID> | <Payload>
-            // <circuito> <hop> | <end>    <local/exit>    |  <streamID> |
+            //                    2bits      1bit(0/1)      5bits    |   Resto
+            // <circuito> <hop> | <talk>   <local/exit>   <streamID> | <Payload>
+            // <circuito> <hop> | <end>    <local/exit>   <streamID> |
 
-            byte type = (this->buffer[1]>>6) & this->mask;//saber se é new ou nao
-            byte hops = (this->buffer[0]) & this->mask;//numero de hops
+            byte type = (this->buffer[1]>>6) & 0x03;//saber se é new ou nao
+            byte hops = (this->buffer[0]) & 0x03;//numero de hops
 
             if (hops == 0){
                 switch(type){
@@ -198,11 +200,11 @@ class Protocol{
                 if (type == NEW){//saber se é new ou nao
                     this->direction = getRandomDirection(hops);
                 }else{
-                    this->direction = (this->buffer[0]>>(hops<<1)) & mask;
+                    this->direction = (this->buffer[0]>>(hops<<1)) & 0x03;
                     //recalc
                 }
                 hops -= 1;//decrementar saltos
-                this->buffer[0] = (this->buffer[0] & 0xfc) | (hops & mask);
+                this->buffer[0] = (this->buffer[0] & 0xfc) | (hops & 0x03);
             }
             return 0;
         }
@@ -211,25 +213,23 @@ class Protocol{
             unsigned int vector = 0;    
             int temp=0;
                     
-            temp = (this->buffer[0]>>2) & mask;
+            temp = (this->buffer[0]>>2) & 0x03;
             vector += 1<<(temp<<3);
 
-            temp = (this->buffer[0]>>4) & mask;
+            temp = (this->buffer[0]>>4) & 0x03;
             vector += 1<<(temp<<3);
                     
-            temp = (this->buffer[0]>>6) & mask;
+            temp = (this->buffer[0]>>6) & 0x03;
             vector += 1<<(temp<<3);
 
             return vector;
         }
 
-        short getStreamID(){
-            short streamID = this->buffer[2] & 0x3f;
-            
-            return streamID;
+        short getStreamID(){  
+            return this->buffer[1] & 0x1f;
         }
         bool isExitNode(){
-            if ((this->buffer[1]>>4) & mask) {//se for local
+            if ((this->buffer[1]>>5) & 0x01) {
                 return true;
             }
             return false;
@@ -240,6 +240,18 @@ class Protocol{
         }
 
         //PACKET CREATION
+        void freshBuild(bool domain, short streamID, byte* payload, int psize){
+            direction = getRandomDirection(3);
+            buffer[0] |= 2 & 0x03;
+
+            buffer[1] = 1<<6;
+            if (domain)
+                this->buffer[1] |= 1<<5;
+
+            this->buffer[1] = streamID & 0x1f;
+            memcpy(&buffer[2], payload, psize);
+        }
+
         void build(short streamID, unsigned int vector, bool exit){
             
             byte circuit = getNewPath((byte*) &vector);
@@ -251,14 +263,14 @@ class Protocol{
             this->buffer[1] = 1<<6;
             
             if (exit)
-                this->buffer[1] |= 1<<4;
+                this->buffer[1] |= 1<<5;
 
-            this->buffer[2] = streamID & 0x3f;
+            this->buffer[1] = streamID & 0x1f;
 
             getNextDirection();
         }
 
-        void end(short streamID, unsigned int vector, bool exit){
+        void endBuild(short streamID, unsigned int vector, bool exit){
             memset(buffer, 0, PACKET);
             byte circuit = getNewPath((byte*) &vector);
             
@@ -269,9 +281,9 @@ class Protocol{
             this->buffer[1] = 2<<6;
             
             if (exit)
-                this->buffer[1] |= 1<<4;
+                this->buffer[1] |= 1<<5;
 
-            this->buffer[2] = streamID & 0x3f;
+            this->buffer[1] = streamID & 0x1f;
 
             getNextDirection();
         }
@@ -413,10 +425,18 @@ short findEmpty(struct pollfd* list, int fd){
 }
 
 void closeLocal(short streamID){
-
+    close(localSocks[streamID].fd);
+    localSocks[streamID].fd = -1;
+    localSocks[streamID].events = 0;
+    path[streamID] = 0;
 }
 void closeExit(pair<unsigned int,short> p){
-    
+    short streamID = streamIdentifier[p];
+    close(exitSocks[streamID].fd);
+    exitSocks[streamID].fd = -1;
+    exitSocks[streamID].events = 0;
+    streamIdentifier.erase(p);
+    pathIdentifier.erase(streamID);
 }
 
 int tcpServerSocket(int port){
@@ -539,16 +559,15 @@ void forwardingProcedure(short dir){
         packet.get();
         
         dir = packet.getNextDirection();//caso seja para encaminhar faz aqui a alteracao do salto
-
         streamID = packet.getStreamID();
+        pair<unsigned int,short> p(packet.getVector(), streamID);
 
         switch(dir){
             case 0://é para encaminhar
                 packet.forward();
                 break; 
             case 1:{//new exitSocket
-                pair<unsigned int,short> p(packet.getVector(), streamID);
-                pair<unsigned int,short> r(invert(packet.getVector()), streamID);
+                pair<unsigned int,short> r(invert(p.first), streamID);
 
                 int webSocket = webConnect();
                 if (webSocket > 0){
@@ -556,15 +575,13 @@ void forwardingProcedure(short dir){
                     streamIdentifier[p] = s;
                     pathIdentifier[s] = r;
                 }else{
-                    packet.end(streamID, r.first, false);
+                    packet.endBuild(streamID, r.first, false);
                     packet.forward();
                 }
                 break;
             }
             case 2://talk
                 if (packet.isExitNode()){
-                    pair<unsigned int,short> p(packet.getVector(), streamID);
-
                     send(exitSocks[streamIdentifier[p]].fd, NULL, PACKET, 0);
                 }else{
                     if (path[streamID] == 0)
@@ -574,11 +591,6 @@ void forwardingProcedure(short dir){
                 break;
             case 3://end
                 if (packet.isExitNode()){
-                    pair<unsigned int,short> p(packet.getVector(), streamID);
-                    //pair<unsigned int, short> p = {}
-                    //streamIdentifier[{}];
-                    //pathIdentifier
-                    //pair 
                     closeExit(p);
                 }else{
                     closeLocal(streamID);
@@ -595,30 +607,22 @@ void forwardingProcedure(short dir){
 //threadC
 void forwardingHandler(int manager, int type){
     
-
     short result = -1, streamID = -1, dir;
-
-    byte* buffer = (byte*)malloc(PACKET);
+    byte* buffer = (byte*) malloc(PACKET);
     
 
     //poll atributes
     while (1){
-
-        result = poll(neighbors, 4, -1);
-
+        result = poll(neighbors, 5, -1);
         if (result < 0){
             //algum tipo de erro
         }
 
         dir = streamID = -1;
-
         while (dir++ < 5){
-
             if (neighbors[dir].revents & POLLIN){
-                thread slave (forwardingProcedure, dir);
+                thread slave(forwardingProcedure, dir);
                 slave.detach();
-                //pthread_create(&slave, NULL, forwardingProcedure,(void*)dir);
-                
                 neighbors[dir].revents = 0;
             }
             memset(buffer, 0, PACKET); 
@@ -626,9 +630,19 @@ void forwardingHandler(int manager, int type){
     }
 }
 
+void exitNodeProcedure(byte* buffer, short n, short streamID){
+    Protocol packet(-1);
+    packet.setPacket(buffer, n);
+
+    pair<unsigned int, short> p = pathIdentifier[streamID];
+
+    packet.build(p.second, p.first, false);
+    packet.forward();
+}
+
 //threadD
 void exitNodeHandler(){
-    short streamID, result = -1;
+    short streamID, result = -1, n;
     byte* buffer = (byte*)malloc(PACKET);
     
     while (1){
@@ -639,7 +653,10 @@ void exitNodeHandler(){
         streamID = -1;
         while (streamID++ < MAXFDS){
             if (exitSocks[streamID].revents & POLLIN){
-                recv(exitSocks[streamID].fd, buffer, PACKET, 0);
+                n = recv(exitSocks[streamID].fd, buffer, PACKET, 0);
+                
+                thread slave(exitNodeProcedure, buffer, n, streamID);
+                slave.detach();
                 
                 exitSocks[streamID].revents = 0;
                 break;
@@ -647,7 +664,6 @@ void exitNodeHandler(){
         }
     }
 }
-
 
 int main(int argc, char const *argv[]){
     
