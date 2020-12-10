@@ -380,22 +380,37 @@ class Protocol{
 
 class Socks{
     private:
-        byte buffer[300] = {0};
-        byte ip[4] = {0};
-        byte domain[255] = {0};
-        byte domain_size = 0;
-        int fd;
-        unsigned short port = 0;
 
-        void greetingsAnswer(int fd, int auth_method){
-            byte answer[2];
-            answer[0] = 0x05;
-            if(auth_method){ // No method accepted
-                answer[1] = 0xff;
-            }else{ // Accept no_auth
+    	byte version = 0;
+    	
+    	int nread = -1;
+
+    	byte buffer[300] = {0};
+
+    	unsigned short bufferSize = 300;
+
+    	byte addr_type = 0;
+
+    	byte* addr = NULL; //IP+PORT v5 | PORT+IP v4
+
+        int fd;
+
+        void greetingsAnswer(bool auth){
+            byte answer[2] = {0x05, 0xff};
+            if(auth){ // method accepted
                 answer[1] = 0x00;
             }
             send(fd, answer, 2, 0);
+        }
+
+        void v4Answer(bool req){
+            byte answer[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+            if(req){
+                answer[1] = 0x5A;
+            }else{
+                answer[1] = 0x5B;
+            }
+            send(fd, answer, 8, 0);
         }
 
     public:
@@ -403,72 +418,107 @@ class Socks{
             this->fd = fd;
         }
 
-        void handleGreetingPacket(){
-            int nread = recv(this->fd, this->buffer, 64, 0);
-            printf("Versao: %d\n", this->buffer[0]);
-            if(nread < 0){
-                // erro
-            }else{
-                if(this->buffer[0] == 0x05){
-                    if(this->buffer[1] < 1){
-                        // nao suporta nenhum tipo de autenticação
-                        greetingsAnswer(fd, 1);
-                    }else{
-                        for(int i=2 ; i<nread; i++){
-                            if(this->buffer[i] == 0x00){
-                                greetingsAnswer(fd, 0);
-                                memset(this->buffer, 0, 64);
-                                // return 0;
-                                break;
-                            }
+        bool handleGreetingPacket(){ //return false = erro / true = autenticacao e suportada
+            nread = recv(fd, buffer, bufferSize, 0);
+            if(nread > 0){
+                version = buffer[0];
+            	switch(version){
+            		case 0x05:
+            			if((int)buffer[1] < 1){
+            				// nao suporta nenhum tipo de autenticação
+                        	greetingsAnswer(false);
+            			} else {
+            				for(int i = 2 ; i < nread; i++){
+	                            if(buffer[i] == 0x00){
+	                                greetingsAnswer(true);
+	                                return true;
+	                            }
+                        	}
+	                        //nao suporta o nosso tipo de autenticacao
+	                        greetingsAnswer(false);
+            			}
+            			break;
+            		case 0x04:
+                        if(buffer[1] != 0x01){
+                            v4Answer(false);
+                            return false;
                         }
-                    }
-                }
-                memset(this->buffer, 0, 64);
-                greetingsAnswer(fd, 1);
+                        addr = &buffer[2];
+                        v4Answer(true);
+                        return true;
+
+            			break;
+            		default:
+            			// erro
+            			return false;
+            	}
             }
-            // return 1;
+            return false;
         }
         
-        int handleConnectionReq(){ // Ler pacote Client connection request 
-	        int nread;
-            if(nread = recv(this->fd, this->buffer, sizeof(this->buffer), 0) < 0){
-                //erro
-            }else{
-                if(this->buffer[3] == 0x01){ // IPV4
-                    memcpy(this->ip, &this->buffer[4], 4);
-                    this->port = buffer[8] | buffer[9] << 8;
-                    // printf(" %d.%d.%d.%d \n", this->ip[0], this->ip[1], this->ip[2], this->ip[3]);
-                    memset(this->buffer, 0, nread);
-                    return 0;
+        bool handleConnectionReq(){ // Ler pacote Client connection request
+	        nread = recv(fd, buffer, bufferSize, 0);
+            if(nread > 0){
+            	addr_type = buffer[3];
+                if(version == 5){
+                    
                 }
-                if(this->buffer[3] == 0x03){ // Domain
-                    memcpy(this->domain, &this->buffer[5], this->buffer[4]);
-                    domain_size = this->buffer[4];
-                    memset(this->buffer, 0, nread);
-                    // for(int i = 0; i < 255; i++){
-                    //     printf("%c", this->domain);
-                    // }
-                    return 1;
-                }
+            	switch(addr_type){
+            		case 0x01:
+            			cout << "IPv4\n";
+            			break;
+            		case 0x03:
+            			cout << "Dominio\n";
+            			break;
+            		case 0x04:
+            			cout << "IPv6\n";
+            			break;
+            	}
+            	if (addr_type == 0x01 || addr_type == 0x03){
+            		addr = &buffer[4];
+
+
+            		return true;
+            	}
             }
-            return -1;
+            //nao suportado/ erro
+            return false;
         }
 
-        byte* getIP(){
-            return ip;
+        int responsePacket(){
+            if(version == 0x04){
+                return 1;  
+            }else{
+                buffer[1] = 0x00;
+        	    return send(fd, buffer, nread, 0);
+            }
         }
 
-        unsigned short getPort(){
-            return port;
+        byte* getAddr(){
+            if(version == 0x04){
+                byte aux[6];
+                aux[0] = addr[2];
+                aux[1] = addr[3];
+                aux[2] = addr[4];
+                aux[3] = addr[5];
+                aux[4] = addr[0];
+                aux[5] = addr[1];
+                return aux;
+            }
+            if(version == 0x05){
+                return addr;
+            }
         }
 
-        byte* getDomain(){
-            return domain;
-        }
-
-        byte getDomainSize(){
-            return domain_size;
+        byte getAddrType(){
+            if(version == 0x04){
+                return 0;
+            }else{
+                if (addr_type == 0x01){ //ipv4
+        		    return 0;
+        	    }
+        	        return 1;
+            }
         }
 };
 
@@ -564,22 +614,37 @@ int tcpClientSocket(uint32_t ip, int port){
 }
 
 void proxyServerProcedure(int proxyClient){
-    Socks clientsock(proxyClient);
-    clientsock.handleGreetingPacket();
-    int tipo = clientsock.handleConnectionReq(); // retorna se é ip ou domain
-    if(tipo == 0){ // É ip
-        byte *ip = clientsock.getIP();
-        unsigned short port = clientsock.getPort();
-        printf("%d.%d.%d.%d:%d \n", ip[0], ip[1], ip[2], ip[3], port);
-    }
-    if(tipo == 1){ // É domain
-        byte *domain = clientsock.getDomain();
-        printf("%s\n", domain);
-        clientsock.getDomainSize();
-    }
 
-    // lock.aquire() ?
-    // short streamid = findEmpty(localSocks, proxyClient);
+    Socks clientsock(proxyClient);
+
+    if (clientsock.handleGreetingPacket()) {
+		
+    	if (clientsock.handleConnectionReq()) { // se for dominio ou ipv4 retorna true
+    		byte* addr = clientsock.getAddr();
+    		byte type = clientsock.getAddrType();
+
+	    	if (clientsock.responsePacket() > 0) {
+
+	    		short streamID = findEmpty(localSocks, exitSocks, proxyClient);
+	    		if (streamID >= 0){
+	    			int exitSocket = webConnect(type, addr);
+	    			if(exitSocket > 0){
+	    				
+	    				exitSocks[streamID].fd = exitSocket;
+		    			exitSocks[streamID].events = POLLIN | POLLHUP | POLLERR;
+		    			exitSocks[streamID].revents = 0;
+		    			
+		    			pthread_kill(localSlave, SIGALRM);
+	    				pthread_kill(exitSlave, SIGALRM);
+		    			return;
+	    			}
+	    			closeExitStream(streamID);
+	    			closeLocalStream(streamID);
+	    		}
+	    	}
+    	}
+    }
+    close(proxyClient);
 }
 
 //threadA
