@@ -191,7 +191,7 @@ namespace std{
         buffer[1] = NEW<<6;
         if (domain){
             buffer[1] |= 1<<5;
-            memcpy(&buffer[2], payload, payload[0]+1);
+            memcpy(&buffer[2], payload, payload[0]+3);
         }else{
             memcpy(&buffer[2], payload, 6);
         }

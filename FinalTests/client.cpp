@@ -181,19 +181,22 @@ int webConnect(byte type, byte* addr){
 		puts(printbuffer);
 
 		port = (addr[size+1] << 8) | addr[size+2];
+		printf("porta %d\n", port);
 		char portchar[6];
 		snprintf(portchar, 6, "%d", port);
-
+		puts(portchar);
 		struct addrinfo *result, *rp;
 		int r = getaddrinfo(domain, portchar, NULL, &result);
 
 		if (r == 0){
 			for (rp = result; rp != NULL; rp = rp->ai_next) {
 				sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+				puts("webconnect");
                 if (sock > 0) {
                     r = connect(sock, rp->ai_addr, rp->ai_addrlen);
 					if (r == 0) {
 						freeaddrinfo(result);
+						puts("Web connect sucesso");
 						return sock;
 	                } else {
 	                    close(sock);

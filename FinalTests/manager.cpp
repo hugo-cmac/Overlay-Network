@@ -422,6 +422,11 @@ int tcpServerSocket(int port){
 		puts("Error: SO_REUSEADDR                   \n");
 		return -1;
 	}
+    if (setsockopt(s, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one)) < 0) {
+		close(s);
+		puts("Error: SO_REUSEPORT");
+		return -1;
+	}
     if (listen(s, MAXFDS) < 0){
         close(s);
         puts("Error: listen                         \n");
