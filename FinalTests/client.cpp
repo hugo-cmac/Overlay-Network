@@ -247,7 +247,7 @@ void exitNodeHandler(int streamID){
     byte* buffer = (byte*)malloc(PACKET);
     ClientProtocol packet(-1);
     pair<unsigned int, short> p = pathIdentifier[streamID];
-
+	printf("Exit inicializado %d\n", streamID);
     while (n){
     	memset(buffer, 0, PACKET);
 		n = recv(exitSocks[streamID], &buffer[2], PAYLOAD, 0);
@@ -264,7 +264,7 @@ void exitNodeHandler(int streamID){
 void proxyLocalHandler(ClientProtocol packet, int streamID){
 	byte* buffer = (byte*)malloc(PACKET);
 	int n = 1;
-    
+    puts("Local inicializado");
 	while(n){
 		n = recv(localSocks[streamID], buffer, PACKET, 0);
 		if (n > 0){
@@ -297,6 +297,7 @@ void proxyServerProcedure(int proxyClient){
 						return;
 					}
 				}
+				puts("ligacao bem estabelecida");
 				if (client.responsePacket() > 0) 
 					proxyLocalHandler(packet, streamID);
                 packet.buildEnd(streamID, path[streamID], true);
@@ -344,7 +345,8 @@ void forwardingHandler(int direction){
 		    pair<unsigned int,short> p(packet.getVector(), streamID);
 
 	        switch(result){
-		       	case 0://é para encaminhar    
+		       	case 0://é para encaminhar  
+				   	printf("Encaminhou da %d\n", direction);
 		            packet.write();
 		            break; 
 		        case 1:{//new exitSocket
@@ -353,6 +355,7 @@ void forwardingHandler(int direction){
 		            int webSocket = webConnect(packet.getAddrType(), packet.getAddr());
 		            if (webSocket > 0){
                         if ((streamIdentifier[p] = findEmpty(exitSocks, webSocket)) != -1){
+							puts("Abriu nova exit");
                             pathIdentifier[streamIdentifier[p]] = r;
                             packet.buildResponse(streamID, r.first, true);
                             packet.write();
@@ -368,6 +371,7 @@ void forwardingHandler(int direction){
 		        }
 				case 2:
 					if (packet.getResponseState()){
+						puts("Sucesso");
 						if (path[streamID] == 0)
 		                    path[streamID] = invertVector(packet.getVector());
 					}else{
@@ -377,14 +381,16 @@ void forwardingHandler(int direction){
 		        case 3://talk
 		            if (packet.isExitNode()){//exit sock
 		                send(exitSocks[streamIdentifier[p]], packet.getPayload(), PACKET, 0);
+						puts("Recebeu para exit");
 		                //cout << "Exit: "<< (char*)packet.getPayload()<<"\n";
 		            }else{//localsock
 		            	//cout << "Local: "<< (char*)packet.getPayload()<<"\n";
 		                send(localSocks[streamID], packet.getPayload(), PACKET, 0);
+						puts("Recebeu para local");
 		            }
 		            break;
 		        case 4://end
-					puts("Recebeu resposta");
+					puts("Recebeu fim de streamID");
 		            if (packet.isExitNode())
 		                closeExit(p);
 		            else
@@ -499,7 +505,7 @@ int main(int argc, char const *argv[]){
     nodeID = atoi(argv[1]);
 	unsigned int managerAddr = 0;
 
-    inet_pton(AF_INET, "172.20.10.4 ", &managerAddr);
+    inet_pton(AF_INET, "172.20.10.4", &managerAddr);
 	manager.setManagerConf(managerAddr, 7777);
 	pthread_create(&managerSlave, NULL, Manager, NULL);
 	pthread_detach(managerSlave);
