@@ -296,6 +296,8 @@ void proxyServerProcedure(int proxyClient){
 				packet.write();
 
 				while (!path[streamID]){
+					puts("preso");
+					sleep(1);
 					if (localSocks[streamID] == -1){
 						return;
 					}
@@ -374,9 +376,12 @@ void forwardingHandler(int direction){
 		        }
 				case 2:
 					if (packet.getResponseState()){
-						puts("Sucesso");
-						if (path[streamID] == 0)
-		                    path[streamID] = invertVector(packet.getVector());
+						
+						if (path[streamID] == 0){
+							puts("Sucesso");
+							path[streamID] = invertVector(packet.getVector());
+						}
+		                    
 					}else{
 						closeLocal(streamID);
 					}
