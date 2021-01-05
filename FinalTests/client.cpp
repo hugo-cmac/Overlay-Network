@@ -177,7 +177,7 @@ int webConnect(byte type, byte* addr){
 		memcpy(domain, &addr[1], size);
 
 		char printbuffer[256];
-		sprintf(printbuffer,"\x1b[35;0fDomain: %s", domain);
+		sprintf(printbuffer,"Domain: %s", domain);
 		puts(printbuffer);
 
 		port = (addr[size+1] << 8) | addr[size+2];
@@ -499,7 +499,7 @@ int main(int argc, char const *argv[]){
     nodeID = atoi(argv[1]);
 	unsigned int managerAddr = 0;
 
-    inet_pton(AF_INET, "10.0.0.10", &managerAddr);
+    inet_pton(AF_INET, "172.20.10.4 ", &managerAddr);
 	manager.setManagerConf(managerAddr, 7777);
 	pthread_create(&managerSlave, NULL, Manager, NULL);
 	pthread_detach(managerSlave);
