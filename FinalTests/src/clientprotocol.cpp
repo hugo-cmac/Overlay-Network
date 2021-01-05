@@ -22,6 +22,18 @@ unsigned int invertVector(unsigned int vector){
     return inverse;
 }
 
+void printBinary(byte b){
+    short i = 8;
+    while(i--){
+        if (((b>>i) & 0x01) == 1){
+			putchar('1');putchar(' ');
+        }else{
+            putchar('0');putchar(' ');
+		}
+    } 
+    putchar('\n');
+}
+
 byte invertDirection(byte dir){
 	switch(dir){
 		case UP:
@@ -109,6 +121,8 @@ namespace std{
     } 
 
     int ClientProtocol::write(){
+        printBinary(buffer[0]);
+        printBinary(buffer[1]);
         n = send(neighbors[direction], buffer, PACKET, 0);
         if (n < 0)
             return -1;
@@ -211,7 +225,7 @@ namespace std{
     }
 
     void ClientProtocol::buildTalk(short streamID, unsigned int vector, bool exit, byte* payload){
-        memset(buffer, 0, PACKET);
+       
         buffer = payload;
         byte circuit = getNewPath((byte*) &vector);
 

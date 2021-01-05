@@ -393,7 +393,7 @@ void forwardingHandler(int direction){
 		            }else{//localsock
 		            	//cout << "Local: "<< (char*)packet.getPayload()<<"\n";
 		                send(localSocks[streamID], packet.getPayload(), PACKET, 0);
-						puts("Recebeu para local %d\n", streamID);
+						printf("Recebeu para local %d\n", streamID);
 		            }
 		            break;
 		        case 4://end

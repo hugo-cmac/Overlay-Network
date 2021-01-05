@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
+#include <cstdio>
 
 #include <time.h>
 #include <sys/types.h>
