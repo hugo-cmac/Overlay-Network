@@ -181,22 +181,19 @@ int webConnect(byte type, byte* addr){
 		puts(printbuffer);
 
 		port = (addr[size+1] << 8) | addr[size+2];
-		printf("porta %d\n", port);
 		char portchar[6];
 		snprintf(portchar, 6, "%d", port);
-		puts(portchar);
+		
 		struct addrinfo *result, *rp;
 		int r = getaddrinfo(domain, portchar, NULL, &result);
 
 		if (r == 0){
 			for (rp = result; rp != NULL; rp = rp->ai_next) {
 				sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-				puts("webconnect");
                 if (sock > 0) {
                     r = connect(sock, rp->ai_addr, rp->ai_addrlen);
 					if (r == 0) {
 						freeaddrinfo(result);
-						puts("Web connect sucesso");
 						return sock;
 	                } else {
 	                    close(sock);
@@ -266,7 +263,7 @@ void exitNodeHandler(int streamID){
 void proxyLocalHandler(ClientProtocol packet, int streamID){
 	byte* buffer = (byte*)malloc(PACKET);
 	int n = 1;
-    puts("Local inicializado");
+    printf("Local inicializado %d\n", streamID);
 	while(n){
 		memset(buffer, 0, PACKET);
 		n = recv(localSocks[streamID], buffer, PACKET, 0);
@@ -360,7 +357,7 @@ void forwardingHandler(int direction){
 		            int webSocket = webConnect(packet.getAddrType(), packet.getAddr());
 		            if (webSocket > 0){
                         if ((streamIdentifier[p] = findEmpty(exitSocks, webSocket)) != -1){
-							puts("Abriu nova exit");
+							printf("Abriu nova exit %d\n", streamIdentifier[p]);
                             pathIdentifier[streamIdentifier[p]] = r;
                             packet.buildResponse(streamID, r.first, true);
                             packet.write();
@@ -389,12 +386,12 @@ void forwardingHandler(int direction){
 		        case 3://talk
 		            if (packet.isExitNode()){//exit sock
 		                send(exitSocks[streamIdentifier[p]], packet.getPayload(), PACKET, 0);
-						puts("Recebeu para exit");
+						printf("Recebeu para exit %d\n", streamIdentifier[p]);
 		                //cout << "Exit: "<< (char*)packet.getPayload()<<"\n";
 		            }else{//localsock
 		            	//cout << "Local: "<< (char*)packet.getPayload()<<"\n";
 		                send(localSocks[streamID], packet.getPayload(), PACKET, 0);
-						puts("Recebeu para local");
+						puts("Recebeu para local %d\n", streamID);
 		            }
 		            break;
 		        case 4://end
