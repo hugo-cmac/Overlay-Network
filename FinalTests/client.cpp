@@ -364,6 +364,7 @@ void forwardingHandler(int direction){
                             exitSlaves.sendWork(streamIdentifier[p]);
                             break;
                         }
+						puts("Nao devias passar aqui");
                         close(webSocket);
                         streamIdentifier.erase(p);
 		            }
@@ -375,8 +376,9 @@ void forwardingHandler(int direction){
 					if (packet.getResponseState()){
 						
 						if (path[streamID] == 0){
-							puts("Sucesso");
-							path[streamID] = invertVector(packet.getVector());
+							
+							path[streamID] = invertVector(p.first);
+							printf("Sucesso %d\n", path[streamID]);
 						}
 		                    
 					}else{
