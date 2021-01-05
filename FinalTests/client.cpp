@@ -254,7 +254,6 @@ void exitNodeHandler(int streamID){
     while (n){
     	memset(buffer, 0, PACKET);
 		n = recv(exitSocks[streamID], &buffer[2], PAYLOAD, 0);
-		
 		if (n > 0) {
 			packet.buildTalk(p.second, p.first, false, buffer);
 			packet.write();
@@ -269,6 +268,7 @@ void proxyLocalHandler(ClientProtocol packet, int streamID){
 	int n = 1;
     puts("Local inicializado");
 	while(n){
+		memset(buffer, 0, PACKET);
 		n = recv(localSocks[streamID], buffer, PACKET, 0);
 		if (n > 0){
 			packet.buildTalk(streamID, path[streamID], true, buffer);
