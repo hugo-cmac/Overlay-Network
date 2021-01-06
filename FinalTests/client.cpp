@@ -266,7 +266,7 @@ void proxyLocalHandler(ClientProtocol packet, int streamID){
     printf("Local inicializado %d\n", streamID);
 	while(n){
 		memset(buffer, 0, PACKET);
-		n = recv(localSocks[streamID], buffer, PACKET, 0);
+		n = recv(localSocks[streamID], &buffer[2], PACKET, 0);
 		if (n > 0){
 			packet.buildTalk(streamID, path[streamID], true, buffer);
 			packet.write();
