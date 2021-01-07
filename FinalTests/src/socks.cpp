@@ -91,7 +91,7 @@ namespace std{
     }
 
     int Socks::getSize(){
-
+        return payload;
     }
 
     unsigned char Socks::getAddrType(){
