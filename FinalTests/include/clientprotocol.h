@@ -22,8 +22,8 @@
 
 typedef unsigned char byte;
 
-#define PACKET  1024
-#define PAYLOAD 1022
+#define PACKET  4000
+#define PAYLOAD 3998
 
 enum DIRECTION {
     UP = 0,
@@ -64,6 +64,7 @@ namespace std{
         private:
             byte *buffer = NULL;
             int n = 0;
+            int payloadSize = 0;
 
             byte listenDirection;
             byte direction = -1;
@@ -96,11 +97,13 @@ namespace std{
 
             byte* getPayload();
 
-            void buildNew(bool domain, short streamID, byte* payload);
+            int getPayloadSize();
+
+            void buildNew(bool domain, short streamID, byte* payload, int size);
 
             void buildResponse(short streamID, unsigned int vector, bool success);
 
-            void buildTalk(short streamID, unsigned int vector, bool exit, byte* payload);
+            void buildTalk(short streamID, unsigned int vector, bool exit, byte* payload, int size);
 
             void buildEnd(short streamID, unsigned int vector, bool exit);
 			

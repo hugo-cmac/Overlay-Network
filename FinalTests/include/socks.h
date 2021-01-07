@@ -20,6 +20,7 @@ namespace std{
 
             int fd;
             int nread = -1;
+            int payload = 0;
 
             unsigned char buffer[SOCKSIZE] = {0};
              
@@ -35,6 +36,8 @@ namespace std{
             int responsePacket();
 
             unsigned char* getAddr();
+
+            int getSize();
 
             unsigned char getAddrType();
     };

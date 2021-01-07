@@ -40,6 +40,7 @@ namespace std{
                     if(buffer[1] == 0x01){
                         res = true;
                         addr = &buffer[2];
+                        payload = 4;
                     }
                     return res;
             }
@@ -54,6 +55,7 @@ namespace std{
                 addr_type = buffer[3];
                 if (addr_type == 0x01 || addr_type == 0x03){
                     addr = &buffer[4];
+                    payload = nread - 3;
                     return true;
                 }      
             }
@@ -86,6 +88,10 @@ namespace std{
             return addr;
         }
         return NULL;
+    }
+
+    int Socks::getSize(){
+
     }
 
     unsigned char Socks::getAddrType(){

@@ -117,13 +117,14 @@ namespace std{
         n = recv(neighbors[listenDirection], buffer, PACKET, 0);
         if (n < 0)
             return -1;
+        payloadSize = n;
         return n;
     } 
 
     int ClientProtocol::write(){
         printBinary(buffer[0]);
         printBinary(buffer[1]);
-        n = send(neighbors[direction], buffer, PACKET, 0);
+        n = send(neighbors[direction], buffer, payloadSize, 0);
         if (n < 0)
             return -1;
         return n;
@@ -197,7 +198,11 @@ namespace std{
         return &buffer[2];
     }
 
-    void ClientProtocol::buildNew(bool domain, short streamID, byte* payload){
+    int ClientProtocol::getPayloadSize(){
+        return (payloadSize - 2);
+    }
+
+    void ClientProtocol::buildNew(bool domain, short streamID, byte* payload, int size){
         memset(buffer, 0, PACKET);
         direction = getRandomDirection(3);
         buffer[0] |= 2 & 0x03;
@@ -205,11 +210,12 @@ namespace std{
         buffer[1] = NEW<<6;
         if (domain){
             buffer[1] |= 1<<5;
-            memcpy(&buffer[2], payload, payload[0]+3);
+            memcpy(&buffer[2], payload, size);
         }else{
             memcpy(&buffer[2], payload, 6);
         }
         buffer[1] |= streamID & 0x1f;
+        payloadSize = size + 2;///ver melhor
     }
 
     void ClientProtocol::buildResponse(short streamID, unsigned int vector, bool success){
@@ -221,10 +227,11 @@ namespace std{
         if (success)
             buffer[1] |= 1<<5;
         buffer[1] |= streamID & 0x1f;
+        payloadSize = 3;
         getNextDirection();
     }
 
-    void ClientProtocol::buildTalk(short streamID, unsigned int vector, bool exit, byte* payload){
+    void ClientProtocol::buildTalk(short streamID, unsigned int vector, bool exit, byte* payload, int size){
        
         buffer = payload;
         byte circuit = getNewPath((byte*) &vector);
@@ -235,6 +242,9 @@ namespace std{
         if (exit)
             buffer[1] |= 1<<5;
         buffer[1] |= streamID & 0x1f;
+
+        payloadSize = size + 2;
+
         getNextDirection();
     }
 
@@ -249,6 +259,9 @@ namespace std{
         if (exit)
             buffer[1] |= 1<<5;
         buffer[1] |= streamID & 0x1f;
+
+        payloadSize = 3;
+
         getNextDirection();
     }
 
@@ -257,6 +270,5 @@ namespace std{
             return true;
         return false;
     }
-			
 
 }

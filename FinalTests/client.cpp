@@ -252,7 +252,7 @@ void exitNodeHandler(int streamID){
     	memset(buffer, 0, PACKET);
 		n = recv(exitSocks[streamID], &buffer[2], PAYLOAD, 0);
 		if (n > 0) {
-			packet.buildTalk(p.second, p.first, false, buffer);
+			packet.buildTalk(p.second, p.first, false, buffer, n+2);
 			packet.write();
 		} else {
 			return;
@@ -266,9 +266,9 @@ void proxyLocalHandler(ClientProtocol packet, int streamID){
     printf("Local inicializado %d\n", streamID);
 	while(n){
 		memset(buffer, 0, PACKET);
-		n = recv(localSocks[streamID], &buffer[2], PACKET, 0);
+		n = recv(localSocks[streamID], &buffer[2], PAYLOAD, 0);
 		if (n > 0){
-			packet.buildTalk(streamID, path[streamID], true, buffer);
+			packet.buildTalk(streamID, path[streamID], true, buffer, n+2);
 			packet.write();
 		}else{
 			return;
@@ -286,10 +286,11 @@ void proxyServerProcedure(int proxyClient){
     	if (client.handleConnectionReq()) { // se for dominio ou ipv4 retorna true
     		byte* addr = client.getAddr();
     		byte type = client.getAddrType();
+			int size = client.getSize();
 
 			short streamID = findEmpty(localSocks, proxyClient);
 			if (streamID != -1){
-	    		packet.buildNew(type, streamID, addr);
+	    		packet.buildNew(type, streamID, addr, size);
 				packet.write();
 
 				while (!path[streamID]){
@@ -387,12 +388,14 @@ void forwardingHandler(int direction){
 					break;
 		        case 3://talk
 		            if (packet.isExitNode()){//exit sock
-		                send(exitSocks[streamIdentifier[p]], packet.getPayload(), PACKET, 0);
+						puts("Exit");
+		                send(exitSocks[streamIdentifier[p]], packet.getPayload(), packet.getPayloadSize(), 0);
 						printf("Recebeu para exit %d\n", streamIdentifier[p]);
 		                //cout << "Exit: "<< (char*)packet.getPayload()<<"\n";
 		            }else{//localsock
+						puts("Local");
 		            	//cout << "Local: "<< (char*)packet.getPayload()<<"\n";
-		                send(localSocks[streamID], packet.getPayload(), PACKET, 0);
+		                send(localSocks[streamID], packet.getPayload(), packet.getPayloadSize(), 0);
 						printf("Recebeu para local %d\n", streamID);
 		            }
 		            break;
