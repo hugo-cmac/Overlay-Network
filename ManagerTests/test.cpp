@@ -470,7 +470,7 @@ class Protocol{
         }
 
 		byte getNewPath(byte vector[4]){
-            int dir[3]={0};
+            int dir[3] = {0};
             int f = 0, s = 0, t = 0;
 			
             while(f < 4){
@@ -637,7 +637,7 @@ class Protocol{
 
 		void buidResponse(short streamID, unsigned int vector, bool success){
 			puts("Build response");
-			byte circuit = getNewPath((byte*) & vector);
+			byte circuit = getNewPath((byte*) &vector);
 			buffer[0] = circuit;
 
             buffer[1] = 1<<6;
