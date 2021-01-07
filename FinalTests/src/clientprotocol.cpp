@@ -115,6 +115,7 @@ namespace std{
     int ClientProtocol::read(){
         memset(buffer, 0, PACKET);
         n = recv(neighbors[listenDirection], buffer, PACKET, 0);
+        printf("nread = %d\n", n);
         if (n < 0)
             return -1;
         payloadSize = n;
@@ -125,6 +126,7 @@ namespace std{
         printBinary(buffer[0]);
         printBinary(buffer[1]);
         n = send(neighbors[direction], buffer, payloadSize, 0);
+        printf("nsend = %d\n", n);
         if (n < 0)
             return -1;
         return n;

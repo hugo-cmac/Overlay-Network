@@ -252,7 +252,7 @@ void exitNodeHandler(int streamID){
     	memset(buffer, 0, PACKET);
 		n = recv(exitSocks[streamID], &buffer[2], PAYLOAD, 0);
 		if (n > 0) {
-			packet.buildTalk(p.second, p.first, false, buffer, n+2);
+			packet.buildTalk(p.second, p.first, false, buffer, n);
 			packet.write();
 		} else {
 			return;
@@ -268,7 +268,7 @@ void proxyLocalHandler(ClientProtocol packet, int streamID){
 		memset(buffer, 0, PACKET);
 		n = recv(localSocks[streamID], &buffer[2], PAYLOAD, 0);
 		if (n > 0){
-			packet.buildTalk(streamID, path[streamID], true, buffer, n+2);
+			packet.buildTalk(streamID, path[streamID], true, buffer, n);
 			packet.write();
 		}else{
 			return;
@@ -328,6 +328,8 @@ void proxyServerHandler(){
         if (client < 0) {
             close(client);
         } else {
+			printf("Nova ligacao [ENTER]");
+			getchar();
 			setsockopt(server, SOL_TCP, TCP_NODELAY, &one, sizeof(one));
         	setsockopt(client, SOL_TCP, TCP_NODELAY, &one, sizeof(one));
             localSlaves.sendWork(client);
@@ -386,19 +388,22 @@ void forwardingHandler(int direction){
 						closeLocal(streamID);
 					}
 					break;
-		        case 3://talk
+		        case 3{://talk
+					byte *payload = packet.getPayload();
+					
 		            if (packet.isExitNode()){//exit sock
 						puts("Exit");
-		                send(exitSocks[streamIdentifier[p]], packet.getPayload(), packet.getPayloadSize(), 0);
+		                send(exitSocks[streamIdentifier[p]], payload, packet.getPayloadSize(), 0);
 						printf("Recebeu para exit %d\n", streamIdentifier[p]);
 		                //cout << "Exit: "<< (char*)packet.getPayload()<<"\n";
 		            }else{//localsock
 						puts("Local");
 		            	//cout << "Local: "<< (char*)packet.getPayload()<<"\n";
-		                send(localSocks[streamID], packet.getPayload(), packet.getPayloadSize(), 0);
+		                send(localSocks[streamID], payload, packet.getPayloadSize(), 0);
 						printf("Recebeu para local %d\n", streamID);
 		            }
 		            break;
+				}
 		        case 4://end
 					puts("Recebeu fim de streamID");
 		            if (packet.isExitNode())
