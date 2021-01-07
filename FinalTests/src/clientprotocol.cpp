@@ -34,6 +34,103 @@ void printBinary(byte b){
     putchar('\n');
 }
 
+void printHeader(byte *head){
+    byte bit = (head[0]>>6) & 0x03;
+    switch (bit){
+        case UP:
+            printf("UP ");
+            break;
+        case RIGHT:
+            printf("RIGHT ");
+            break;
+        case DOWN:
+            printf("DOWN ");
+            break;
+        case LEFT:
+            printf("LEFT ");
+            break;
+        
+        default:
+            printf("[ ] ");
+            break;
+    }
+
+    bit = (head[0]>>4) & 0x03;
+    switch (bit){
+        case UP:
+            printf("UP ");
+            break;
+        case RIGHT:
+            printf("RIGHT ");
+            break;
+        case DOWN:
+            printf("DOWN ");
+            break;
+        case LEFT:
+            printf("LEFT ");
+            break;
+        
+        default:
+            printf("[ ] ");
+            break;
+    }
+
+    bit = (head[0]>>2) & 0x03;
+    switch (bit){
+        case UP:
+            printf("UP ");
+            break;
+        case RIGHT:
+            printf("RIGHT ");
+            break;
+        case DOWN:
+            printf("DOWN ");
+            break;
+        case LEFT:
+            printf("LEFT ");
+            break;
+        
+        default:
+            printf("[ ] ");
+            break;
+    }
+
+    bit = head[0] & 0x03;
+    printf("HOPS: %d\n", bit);
+
+    bit = (head[1]>>6) & 0x03;
+    switch (bit){
+        case NEW:
+            printf("NEW ");
+            break;
+        case RESP:
+            printf("RESP ");
+            break;
+        case TALK:
+            printf("TALK ");
+            break;
+        case END:
+            printf("END ");
+            break;
+        
+        default:
+            printf("[ ] ");
+            break;
+    }
+
+    bit = (head[1]>>5) & 0x01;
+
+    if (bit){
+        printf("EXIT ");
+    }else{
+        printf("LOCAL ");
+    }
+    
+    bit = head[1] & 0x1f;
+    printf("Stream ID: %d\n", bit);
+
+}
+
 byte invertDirection(byte dir){
 	switch(dir){
 		case UP:
@@ -64,7 +161,7 @@ namespace std{
     }
 
     byte ClientProtocol::getNewPath(byte vector[4]){
-        int dir[3]={0};
+        int dir[3] = {0};
         int f = 0, s = 0, t = 0;
                 
         while(f < 4){
@@ -123,8 +220,7 @@ namespace std{
     } 
 
     int ClientProtocol::write(){
-        printBinary(buffer[0]);
-        printBinary(buffer[1]);
+        printHeader(buffer);
         n = send(neighbors[direction], buffer, payloadSize, 0);
         printf("nsend = %d\n", n);
         if (n < 0)
@@ -223,7 +319,7 @@ namespace std{
     void ClientProtocol::buildResponse(short streamID, unsigned int vector, bool success){
         memset(buffer, 0, PACKET);
         
-        buffer[0] = getNewPath((byte*) & vector);
+        buffer[0] = getNewPath((byte*) &vector);
         buffer[1] = RESP<<6;
 
         if (success)

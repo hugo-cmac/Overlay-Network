@@ -328,8 +328,8 @@ void proxyServerHandler(){
         if (client < 0) {
             close(client);
         } else {
-			printf("Nova ligacao [ENTER]");
-			getchar();
+			//printf("Nova ligacao [ENTER]");
+			//getchar();
 			setsockopt(server, SOL_TCP, TCP_NODELAY, &one, sizeof(one));
         	setsockopt(client, SOL_TCP, TCP_NODELAY, &one, sizeof(one));
             localSlaves.sendWork(client);
@@ -347,7 +347,7 @@ void forwardingHandler(int direction){
 			streamID = 0;
 		    result = packet.getNextDirection();//caso seja para encaminhar faz aqui a alteracao do salto
 		    streamID = packet.getStreamID();
-		    pair<unsigned int,short> p(packet.getVector(), streamID);
+		    pair<unsigned int, short> p(packet.getVector(), streamID);
 
 	        switch(result){
 		       	case 0://é para encaminhar  
@@ -377,9 +377,7 @@ void forwardingHandler(int direction){
 		        }
 				case 2:
 					if (packet.getResponseState()){
-						
 						if (path[streamID] == 0){
-							
 							path[streamID] = invertVector(p.first);
 							printf("Sucesso %d\n", path[streamID]);
 						}
@@ -388,7 +386,7 @@ void forwardingHandler(int direction){
 						closeLocal(streamID);
 					}
 					break;
-		        case 3{://talk
+		        case 3:{//talk
 					byte *payload = packet.getPayload();
 					
 		            if (packet.isExitNode()){//exit sock
