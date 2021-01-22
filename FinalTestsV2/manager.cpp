@@ -355,7 +355,13 @@ class Matrix{
              printf("Reporting node: %d\n", id);
             if (nodeList.find(id) != nodeList.end()){
                 printf("Node %d lost\n", id);
+                
+                //backup
                 lost.push(nodeList[id]);
+                //new
+                //Node *n = nodeList[id];
+                //list.push(n, n->neighbors);
+                
                 matrix[nodeList[id]->coord] = 0;
                 nodeList.erase(id);
             }

@@ -11,13 +11,11 @@
 #include <sys/socket.h>
 
 //Protocol
-//   6bit    2bits | 2bits     1bits(0/1)      5bits    |   Rest
-// <circuit> <hop> | <new>    <ip/dominio>   <streamID> | <Payload>
-// <circuit> <hop> | <resp>     <Sucess>     <streamID> | <Payload>
-
-//                   2bits      1bit(0/1)      5bits    |   Resto
-// <circuit> <hop> | <talk>   <local/exit>   <streamID> | <Payload>
-// <circuit> <hop> | <end>    <local/exit>   <streamID> | errr - qual foi
+//   6bit    2bits | 2bits     1bits(0/1)      5bits    |   3bits         13bits      |    Resto
+// <circuit> <hop> | <new>        NULL       <streamID> | <streamID>  <PayloadLength> |  <Payload>
+// <circuit> <hop> | <resp>     <Sucess>     <streamID> | <streamID>  <PayloadLength> |  <Payload>
+// <circuit> <hop> | <talk>   <local/exit>   <streamID> | <streamID>  <PayloadLength> |  <Payload>
+// <circuit> <hop> | <end>    <local/exit>   <streamID> |   
 
 typedef unsigned char byte;
 

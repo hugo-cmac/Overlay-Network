@@ -56,3 +56,23 @@ int tcpClientSocket(unsigned int ip, int port){
     }
     return s;
 }
+
+int tcpClientSocketIPv6(unsigned char* ip, int port){
+    int s = socket(AF_INET6, SOCK_STREAM, 0);
+    if (s < 0){
+    	puts("Error: openning Socket descriptor");
+        return -1;
+    }
+
+    struct sockaddr_in6 addr;
+    addr.sin6_family = AF_INET6;
+    addr.sin6_port = htons(port);
+    inet_pton(AF_INET6, (const char*) ip, &addr.sin6_addr);
+
+    if (connect(s, (struct sockaddr *)&addr, sizeof(addr)) < 0){
+    	close(s);
+        puts("Error: connecting to server");
+        return -1;
+    }
+    return s;
+}

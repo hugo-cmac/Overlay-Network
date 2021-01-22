@@ -71,7 +71,6 @@ class Criptography{
 
                 if(EVP_PKEY_keygen_init(keyGenCtx)){
                     if(EVP_PKEY_keygen(keyGenCtx, &keyPair)){
-                       
                         EVP_PKEY_CTX_free(paramGenCtx);
                         EVP_PKEY_CTX_free(keyGenCtx);
                         return keyPair;
@@ -167,7 +166,6 @@ class Criptography{
     
 };
 
-
 int webConnect(byte* socksPacket){
 	char addr[255];
 	uint32_t ipv4 = 0;
@@ -239,10 +237,8 @@ int webConnect(byte* socksPacket){
 			break;
 		}
 		case 3:
-			printf("Tentativa de conexão ipv6!!!!!!!!!!!!!!!!!!!!!!!!!\n");
-			// IMPLEMENTAR IPV6
-			// return
-			break;
+			sock = tcpClientSocketIPv6(ipv6, port);
+			return sock;
 	}
 
     return -1;
@@ -296,7 +292,6 @@ void exitNodeHandler(int streamID){
 			closeExit(p);
 			return;
 		}
-		//sleep(1);
     }
 }
 
@@ -311,7 +306,7 @@ void proxyLocalHandler(int streamID){
 		memset(buffer, 0, PACKET);
 		n = recv(localSocks[streamID], &buffer[4], PAYLOAD, 0);
 		if (n > 0){
-			packet.buildTalk(streamID,circuit, true, buffer, n);
+			packet.buildTalk(streamID, circuit, true, buffer, n);
 			packet.write();
 		}else{
 			packet.buildEnd(streamID, circuit, true);
@@ -335,7 +330,6 @@ void proxyServerProcedure(int proxyClient){
 			if (streamID != -1){
 	    		packet.buildNew(type, streamID, client.getPayload(), client.getSize());
 				packet.write();
-				sleep(1);
 				return;
 	    	}	    
     	}
@@ -358,13 +352,14 @@ void proxyServerHandler(){
         if (client < 0) {
             close(client);
         } else {
-			setsockopt(server, SOL_TCP, TCP_NODELAY, &one, sizeof(one));
-        	setsockopt(client, SOL_TCP, TCP_NODELAY, &one, sizeof(one));
+			//setsockopt(server, SOL_TCP, TCP_NODELAY, &one, sizeof(one));
+        	//setsockopt(client, SOL_TCP, TCP_NODELAY, &one, sizeof(one));
 			proxyServerProcedure(client);
         }
     }
 
 }
+
 
 void forwardingHandler(int direction){
     int n = 1, streamID, result;
@@ -488,6 +483,7 @@ void manageConnections(int nc){
 				if (buffer[0] < 4) {
 					availableNeighbor[buffer[0]] = 1;
 					neighbors[buffer[0]] = client;
+
 					neighborSlaves.sendWork(buffer[0]);
 					nc--;
 					continue;

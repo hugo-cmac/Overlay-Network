@@ -14,5 +14,7 @@
 int tcpServerSocket(int port);
 
 int tcpClientSocket(unsigned int ip, int port);
-    
+
+int tcpClientSocketIPv6(unsigned char* ip, int port);
+
 #endif
