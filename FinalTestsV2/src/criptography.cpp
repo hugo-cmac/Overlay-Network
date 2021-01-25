@@ -38,7 +38,7 @@ namespace std{
     Criptography::Criptography(){
         privateKey = generateKey();
         publicKey = extractPublicKey(privateKey);
-    }
+    };
 
     unsigned char* Criptography::getPublicKey(){
         unsigned char* pk = NULL;

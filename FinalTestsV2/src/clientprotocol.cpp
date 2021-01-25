@@ -12,16 +12,6 @@ unsigned int random(int n){
     return rand() % n;
 }
 
-unsigned int invertVector(unsigned int vector){
-    unsigned int inverse = 0;
-    inverse |= (vector>>16 & 0x03);
-    inverse |= (vector>>24 & 0x03)<<8;
-    inverse |= (vector & 0x03)<<16;
-    inverse |= (vector>>8  & 0x03)<<24;
-
-    return inverse;
-}
-
 void printBinary(byte b){
     short i = 8;
     while(i--){
@@ -131,7 +121,6 @@ void printHeader(byte *head){
 
 }
 
-
 byte invertDirection(byte dir){
 	switch(dir){
 		case UP:
@@ -146,6 +135,20 @@ byte invertDirection(byte dir){
 	return 0;
 }
 
+byte invertCircuit(byte circuit){
+    byte inverse = 0;
+    inverse = invertDirection(circuit>>6 & 0x03) << 2;
+    inverse |= invertDirection(circuit>>4 & 0x03) << 4;
+    inverse |= invertDirection(circuit>>2 & 0x03) << 6;
+
+    // inverse |= (vector>>16 & 0x03);
+    // inverse |= (vector>>24 & 0x03)<<8;
+    // inverse |= (vector & 0x03)<<16;
+    // inverse |= (vector>>8  & 0x03)<<24;
+
+    return inverse;
+}
+
 
 namespace std{
 
@@ -153,6 +156,7 @@ namespace std{
     byte ClientProtocol::getRandomDirection(byte hop){
         int i = random(4);
         while(!availableNeighbor[i] || listenDirection == i){
+            printf("a");
             i = random(4);
         }
         byte dir = i;
@@ -166,6 +170,7 @@ namespace std{
         int f = 0, s = 0, t = 0;
                 
         while(f < 4){
+            printf("b");
             if (vector[f]){
                 vector[f] -= 1;
                 dir[s++] = f;
@@ -176,11 +181,13 @@ namespace std{
             
         f = random(3);
         while(!availableNeighbor[dir[f]]){
+            printf("c");
             f = random(3);
         }
 
         s = random(3);
         while(s == f){
+            printf("i");
             s = random(3);
         }
 
@@ -202,7 +209,7 @@ namespace std{
         return 5;//erro
     }
             
-    ClientProtocol::ClientProtocol(byte dir){
+    ClientProtocol::ClientProtocol(int dir){
         if (dir != -1){
             buffer = (byte*) malloc(PACKET);
             this->listenDirection = dir;
@@ -213,19 +220,34 @@ namespace std{
     int ClientProtocol::read(){
         memset(buffer, 0, PACKET);
         n = recv(neighbors[listenDirection], buffer, PACKET, MSG_WAITALL);
-        if (n < 0)
-            return -1;
-        printf("Size_Read: %d\n", getPayloadSize());
-        return n;
+        if (n > 0){
+            return n;
+        }
+        return -1;
     } 
 
     int ClientProtocol::write(){
-        printHeader(buffer);
-        printf("Size_Write: %d\n", getPayloadSize());
         n = send(neighbors[direction], buffer, PACKET, 0);
-        if (n < 0)
-            return -1;
-        return n;
+        if (n > 0){
+            return n;
+        }
+        return -1;
+    }
+
+    byte* ClientProtocol::getPacket(){
+        return buffer;
+    }
+
+    void ClientProtocol::setPacket(byte* buff){
+        this->buffer = buff;
+    }
+
+    byte ClientProtocol::getDirection(){
+        return direction;
+    }
+
+    byte ClientProtocol::getListenDirection(){
+        return listenDirection;
     }
 
     int ClientProtocol::getNextDirection(){
@@ -249,24 +271,24 @@ namespace std{
         return 0;
     }
 
-    unsigned int ClientProtocol::getVector(){
-        unsigned int vector = 0;    
-        int temp=0;
+    byte ClientProtocol::getCircuit(){
+        byte vector = buffer[0] & 0xfc;    
+        // int temp=0;
                         
-        temp = (buffer[0]>>2) & 0x03;
-        vector += 1<<(temp<<3);
+        // temp = (buffer[0]>>2) & 0x03;
+        // vector += 1<<(temp<<3);
 
-        temp = (buffer[0]>>4) & 0x03;
-        vector += 1<<(temp<<3);
+        // temp = (buffer[0]>>4) & 0x03;
+        // vector += 1<<(temp<<3);
                         
-        temp = (buffer[0]>>6) & 0x03;
-        vector += 1<<(temp<<3);
+        // temp = (buffer[0]>>6) & 0x03;
+        // vector += 1<<(temp<<3);
 
         return vector;
     }
 
-    short ClientProtocol::getStreamID(){	
-	    return buffer[1] & 0x1f;
+    int ClientProtocol::getStreamID(){	
+	    return (buffer[1] & 0x1f) << 3 | (buffer[2] >> 5);
     }
 
     bool ClientProtocol::getResponseState(){
@@ -280,26 +302,25 @@ namespace std{
     }
 
     int ClientProtocol::getPayloadSize(){
-        return ((buffer[2] << 8) | buffer[3]);
+        return ((((buffer[2] & 0x1f) << 8)) | buffer[3]);
     }
 
-    void ClientProtocol::buildNew(bool domain, short streamID, byte* payload, ushort size){
+    void ClientProtocol::buildNew(int streamID, byte* payload, int size){
         memset(buffer, 0, PACKET);
         direction = getRandomDirection(3);
-        printf("direction: %d\n", direction);
 
         buffer[0] |= 2 & 0x03;
         buffer[1] = NEW<<6;   
 
         memcpy(&buffer[4], payload, size);  
 
-        buffer[1] |= streamID & 0x1f;
-        buffer[2] = size >> 8;
+        buffer[1] |= (streamID >> 3) & 0x1f;
+        buffer[2] = ((streamID & 0x07) << 5) | ((size >> 8) & 0x1f);
         buffer[3] = size;
     }
 
-    void ClientProtocol::buildResponse(short streamID, unsigned int vector, bool success){        
-        buffer[0] = getNewPath((byte*) &vector);
+    void ClientProtocol::buildResponse(int streamID, byte circuit, bool success){        
+        buffer[0] = circuit | 0x03;//getNewPath((byte*) &vector);
         buffer[1] = RESP<<6;
 
         if (success){
@@ -308,45 +329,44 @@ namespace std{
             buffer[1] |= 0<<5;
         }
 
-        buffer[1] |= streamID & 0x1f;
+        buffer[1] |= (streamID >> 3) & 0x1f;
 
         getNextDirection();
     }
 
-    void ClientProtocol::buildTalk(short streamID, byte circuit, bool exit, byte* payload, ushort size){
+    void ClientProtocol::buildTalk(int streamID, byte circuit, bool exit, byte* payload, int size){
         buffer = payload;
-        //byte circuit = getNewPath((byte*) &vector);
 
-        buffer[0] = circuit;
+        buffer[0] = circuit | 0x03;
         buffer[1] = TALK<<6;
 
         if (exit)
             buffer[1] |= 1<<5;
-        buffer[1] |= streamID & 0x1f;
 
-        buffer[2] = size >> 8;
+        buffer[1] |= (streamID >> 3) & 0x1f;
+        buffer[2] = ((streamID & 0x07) << 5) | ((size >> 8) & 0x1f);
         buffer[3] = size;
 
         getNextDirection();
     }
 
-    void ClientProtocol::buildEnd(short streamID, byte circuit, bool exit){
+    void ClientProtocol::buildEnd(int streamID, byte circuit, bool exit){
         memset(buffer, 0, PACKET);
-        
-        //byte circuit = getNewPath((byte*) &vector);
-        
-        buffer[0] = circuit;
+
+        buffer[0] = circuit | 0x03;
         buffer[1] = END<<6;
         
         if (exit)
             buffer[1] |= 1<<5;
-        buffer[1] |= streamID & 0x1f;
+        
+        buffer[1] |= (streamID >> 3) & 0x1f;
+        buffer[2] = (streamID & 0x07) << 5;
 
         getNextDirection();
     }
 
     bool ClientProtocol::isExitNode(){
-        if ((buffer[1]>>5) & 0x01) 
+        if ((buffer[1] >> 5) & 0x01) 
             return true;
         return false;
     }

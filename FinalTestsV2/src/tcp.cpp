@@ -29,11 +29,26 @@ int tcpServerSocket(int port){
 		puts("Error: SO_REUSEPORT");
 		return -1;
 	}
-    if (listen(s, MAXFDS) < 0){
+    if (listen(s, MAXFDS/4) < 0){
         close(s);
         puts("Error: listen");
         return -1;
     }
+    int size = 4194304;
+    //////////////////////
+    //Set send buffer size
+    if(setsockopt(s, SOL_SOCKET, SO_SNDBUF, &size, 4) < 0){
+        perror("Error on setting send buffer size");
+        return -1;
+    }
+    size = 6291456;
+    //////////////////////
+    //Set recv buffer size
+    if(setsockopt(s, SOL_SOCKET, SO_RCVBUF, &size, 4) < 0){
+        perror("Error on setting recv buffer size");
+        return -1;
+    }
+
     return s;  
 }
 
@@ -54,6 +69,21 @@ int tcpClientSocket(unsigned int ip, int port){
         puts("Error: connecting to server");
         return -1;
     }
+    int size = 4194304;
+    //////////////////////
+    //Set send buffer size
+    if(setsockopt(s, SOL_SOCKET, SO_SNDBUF, &size, 4) < 0){
+        perror("Error on setting send buffer size");
+        return -1;
+    }
+    size = 6291456;
+    //////////////////////
+    //Set recv buffer size
+    if(setsockopt(s, SOL_SOCKET, SO_RCVBUF, &size, 4) < 0){
+        perror("Error on setting recv buffer size");
+        return -1;
+    }
+
     return s;
 }
 

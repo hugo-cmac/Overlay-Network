@@ -22,6 +22,7 @@ namespace std {
     
     int ManagerProtocol::connectToManager(){
         if (manager == -1){
+            printf("o");
             pthread_mutex_lock(&mutex);
             while ((manager = tcpClientSocket(ip, port)) < 0){
                 sleep(1);

@@ -19,8 +19,8 @@
 
 typedef unsigned char byte;
 
-#define PACKET  1024
-#define PAYLOAD 1020
+#define PACKET  512
+#define PAYLOAD 508
 
 enum DIRECTION {
     UP = 0,
@@ -50,9 +50,9 @@ extern unsigned int timeR;
 
 unsigned int random(int n);
 
-unsigned int invertVector(unsigned int vector);
-
 byte invertDirection(byte dir);
+
+byte invertCircuit(byte circuit);
 
 namespace std{
 
@@ -67,24 +67,30 @@ namespace std{
 
             byte getRandomDirection(byte hop);
 
-            
-
             byte recalc(byte hop);
 
         public:
-            ClientProtocol(byte dir);
+            ClientProtocol(int dir);
 
             byte getNewPath(byte vector[4]);
 
             int read();
 
             int write();
+            
+            byte* getPacket();
+
+            void setPacket(byte* buff);
+
+            byte getDirection();
+
+            byte getListenDirection();
 
             int getNextDirection();
 
-            unsigned int getVector();
+            byte getCircuit();
 
-            short getStreamID();
+            int getStreamID();
 
             bool getResponseState();
 
@@ -92,13 +98,13 @@ namespace std{
 
             int getPayloadSize();
 
-            void buildNew(bool domain, short streamID, byte* payload, ushort size);
+            void buildNew(int streamID, byte* payload, int size);
 
-            void buildResponse(short streamID, unsigned int vector, bool success);
+            void buildResponse(int streamID, byte circuit, bool success);
 
-            void buildTalk(short streamID, byte circuit, bool exit, byte* payload, ushort size);
+            void buildTalk(int streamID, byte circuit, bool exit, byte* payload, int size);
 
-            void buildEnd(short streamID, byte circuit, bool exit);
+            void buildEnd(int streamID, byte circuit, bool exit);
 			
             bool isExitNode();
 

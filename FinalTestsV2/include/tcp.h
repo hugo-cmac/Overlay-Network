@@ -9,7 +9,7 @@
 #include <netdb.h>
 #include <unistd.h>
 
-#define MAXFDS  32
+#define MAXFDS  128
 
 int tcpServerSocket(int port);
 

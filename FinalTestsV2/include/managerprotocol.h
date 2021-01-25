@@ -14,7 +14,7 @@
 // 	<Approval>	 |	  <Type/Not accepted>     |  <Nr Awaited Connections>
 //               |                            |
 //               |       1byte(0/1/2/3)       |          4bytes
-//  <Conn new>   |        <direction>         |           <IP>    
+// <Connect new> |        <direction>         |           <IP>    
 //               |                            |
 //               |                            |          2bytes
 //  <Patch up>   |        <direction>         |        <clientID> 
