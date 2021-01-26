@@ -19,13 +19,14 @@ using namespace std;
 //////////////////////////////////////////////////////////////////////////////////////////
 // Exit Sockets                                                                     	//
 int  exitSocks [MAXFDS] = {0};                                            				//
-// < < vector, streamID >, streamID>                    	   ////// //  // // /////// //
-map<pair<unsigned int, int>, int> streamIdentifier; 	   //      ////  //   //    //
-//                                                      	   /////    //   //   //    //
-// < streamID, < vector, streamID >                     	   //      ////  //   //    //
-map<int, pair<unsigned int, int>> pathIdentifier;   	   ////// //  // //   //    //
+// < < vector, streamID >, streamID>                    	////// //  // // /////// 	//
+map<pair<unsigned int, int>, int> streamIdentifier; 	   	//      ////  //   //    	//
+//                                                      	/////    //   //   //    	//
+// < streamID, < vector, streamID >                        	//      ////  //   //    	//
+map<int, pair<unsigned int, int>> pathIdentifier;   	   	////// //  // //   //    	//
 // Thread control																		//
 ThreadPool exitSlaves;																	//
+pthread_mutex_t exitMutex = PTHREAD_MUTEX_INITIALIZER;									//
 //////////////////////////////////////////////////////////////////////////////////////////
 
 
@@ -37,14 +38,14 @@ unsigned int path[MAXFDS] = {0};                	 //     //  // //     //  // //
 // Local Sockets                                	 //     //  // //     //  // //     //
 int localSocks [MAXFDS] = {0};        				 ////// ////// ////// //  // ////// //
 //Thread control																		//
-ThreadPool localSlaves;																    //
+ThreadPool localSlaves;																	//
+pthread_mutex_t localMutex = PTHREAD_MUTEX_INITIALIZER;								   	//
 //////////////////////////////////////////////////////////////////////////////////////////
 
 ThreadPool neighborSlaves;
 
 Criptography* crypto[4];
 
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t printmutex = PTHREAD_MUTEX_INITIALIZER;
 
 
@@ -69,8 +70,10 @@ int webConnect(byte* socksPacket){
 	char b[300];
 
 	if(socksPacket[0] == 0x04){
-		ipv4 = (socksPacket[4]) | (socksPacket[5] << 8) | (socksPacket[6] << 16) | (socksPacket[7] << 24);
+		ipv4 = (socksPacket[7]) | (socksPacket[6] << 8) | (socksPacket[5] << 16) | (socksPacket[4] << 24);
 		port = (socksPacket[2] << 8) | (socksPacket[3]);
+		sprintf(b, "IPv4 = %d.%d.%d.%d:%d\n", socksPacket[7], socksPacket[6], socksPacket[5], socksPacket[4], port);
+		concurrencyPrint(b);
 		socksPacket[1] = 0x5A;
 		opt = 1;
 	}else if(socksPacket[0] == 0x05){
@@ -79,7 +82,7 @@ int webConnect(byte* socksPacket){
 			case 0x01: // ipv4
 				ipv4 = (socksPacket[4]) | (socksPacket[5] << 8) | (socksPacket[6] << 16) | (socksPacket[7] << 24);
 				port = (socksPacket[8] << 8) | (socksPacket[9]);
-				sprintf(b, "IPv4 = %d.%d.%d.%d:%d\n",socksPacket[4], socksPacket[5] << 8, socksPacket[6] << 16, socksPacket[7] << 24, port);
+				sprintf(b, "IPv4 = %d.%d.%d.%d:%d\n",socksPacket[4], socksPacket[5], socksPacket[6], socksPacket[7], port);
 				concurrencyPrint(b);
 				opt = 1;
 				break;
@@ -98,7 +101,8 @@ int webConnect(byte* socksPacket){
 				port = (socksPacket[20] << 8) | (socksPacket[21]);
 				printf("IPv6 = ");
 				for (size_t i = 0; i < 16; i++){
-					printf("%02x%02x.", socksPacket[i], socksPacket[++i]);
+					printf("%02x%02x.", socksPacket[i], socksPacket[i+1]);
+					i++;
 				}
 				printf(":%d\n", port);
 				opt = 3;
@@ -146,11 +150,10 @@ int webConnect(byte* socksPacket){
     return -1;
 }
 
-int findEmpty(int* list, int fd){
+int findEmpty(int* list, pthread_mutex_t mutex, int fd){
     short i = -1;
 	pthread_mutex_lock(&mutex);
     while (i++ < MAXFDS){
-		printf("e");
         if (list[i] == -1){   
             list[i] = fd;
 			pthread_mutex_unlock(&mutex);
@@ -162,7 +165,7 @@ int findEmpty(int* list, int fd){
 }
 
 void closeExit(pair<unsigned int,short> p){
-	pthread_mutex_lock(&mutex);
+	pthread_mutex_lock(&exitMutex);
     short streamID = streamIdentifier[p];
 		
     shutdown(exitSocks[streamID], SHUT_RDWR);
@@ -172,11 +175,11 @@ void closeExit(pair<unsigned int,short> p){
     
 	streamIdentifier.erase(p);
     pathIdentifier.erase(streamID);
-	pthread_mutex_unlock(&mutex);
+	pthread_mutex_unlock(&exitMutex);
 }
 
 void closeLocal(short streamID){
-	pthread_mutex_lock(&mutex);
+	pthread_mutex_lock(&localMutex);
 	if (localSocks[streamID] != -1){
 		shutdown(localSocks[streamID], SHUT_RDWR);
 		close(localSocks[streamID]);
@@ -185,26 +188,34 @@ void closeLocal(short streamID){
 		
 		path[streamID] = 0;
 	}
-	pthread_mutex_unlock(&mutex);
+	pthread_mutex_unlock(&localMutex);
 }
 
-int readFromNetwork(ClientProtocol* packet){
-	// byte* buffer = packet->read();
-	// if (buffer == NULL)
-	// 	return -1;
+int readFromNetwork(ClientProtocol packet){
+	if (packet.read() < 0)
+		return -1;
 	
-	// //desencriptar
-	// //setbuffer
-	return 10;
+	byte* buffer = packet.getPacket();
+	
+	byte dir = packet.getListenDirection();
+
+	crypto[dir]->decript(buffer, PACKET);
+	
+	packet.setPacket(buffer);
+
+	return 1;
 }
 
-int writeToNetwork(ClientProtocol* packet, byte* buffer){
-	// if (buffer == NULL)
-	// 	return -1;
-	// //encriptar
-	// if (packet->write(buffer) > 0){
-	// 	return 10;
-	// }
+int writeToNetwork(ClientProtocol packet){
+	byte* buffer = packet.getPacket();
+	byte dir = packet.getDirection();
+
+	crypto[dir]->encript(buffer, PACKET);
+
+	packet.setPacket(buffer);
+
+	if (packet.write() > 0)
+		return 1;
 
 	return -1;
 }
@@ -221,28 +232,25 @@ void exitNodeHandler(int streamID){
 
 	byte circuit = p.first;
     while (n){
-		putchar('f');
+		//putchar('f');
     	memset(buffer, 0, PACKET);
 		n = recv(exitSocks[streamID], &buffer[4], PAYLOAD, 0);
 		if (n > 0) {
 			/////////////////////////////////////////////
 			packet.buildTalk(p.second, circuit, false, buffer, n);
-			if (!(packet.write() > 0)){
-				sprintf(b,"ERRO: writing to neighbor");
-				concurrencyPrint(b);
-			}
+			writeToNetwork(packet);
 			/////////////////////////////////////////////
 		} else {
-			sprintf(b, "END THREAD: exitSocks[%d] = [%d]", p.second, exitSocks[streamID]);
-			concurrencyPrint(b);
-			if (exitSocks[streamID] != -1){
-				closeExit(p);
+			// sprintf(b, "END THREAD: exitSocks[%d] = [%d]", p.second, exitSocks[streamID]);
+			// concurrencyPrint(b);
+			// if (exitSocks[streamID] != -1){
+			// 	closeExit(p);
 
-				/////////////////////////////////////////////
-				packet.buildEnd(streamID, circuit, false);
-				packet.write();
-				/////////////////////////////////////////////
-			}
+			// 	/////////////////////////////////////////////
+			// 	packet.buildEnd(streamID, circuit, false);
+			// 	packet.write();
+			// 	/////////////////////////////////////////////
+			// }
 			return;
 		}
     }
@@ -260,18 +268,13 @@ void proxyLocalHandler(int streamID){
 	byte circuit = path[streamID];
 
 	while(n){
-		putchar('g');
+		//putchar('g');
 		memset(buffer, 0, PACKET);
 		n = recv(localSocks[streamID], &buffer[4], PAYLOAD, 0);
 		if (n > 0){
 			/////////////////////////////////////////////
 			packet.buildTalk(streamID, circuit, true, buffer, n);
-
-			if (!(packet.write() > 0)){
-				sprintf(b, "ERRO: writing to neighbor");
-				concurrencyPrint(b);
-			}
-			
+			writeToNetwork(packet);
 			/////////////////////////////////////////////
 		}else{
 			sprintf(b, "END THREAD: localSocks[%d] = [%d]", streamID, localSocks[streamID]);
@@ -281,7 +284,7 @@ void proxyLocalHandler(int streamID){
 
 				/////////////////////////////////////////////
 				packet.buildEnd(streamID, circuit, true);
-				packet.write();
+				writeToNetwork(packet);
 				/////////////////////////////////////////////
 			}
 			return;
@@ -297,13 +300,13 @@ void proxyServerProcedure(int proxyClient){
 
     if (client.handleGreetingPacket()) {
     	if (client.handleConnectionReq()) { // se for dominio ou ipv4 retorna true
-			short streamID = findEmpty(localSocks, proxyClient);
+			short streamID = findEmpty(localSocks, localMutex, proxyClient);
 			if (streamID != -1){
 				sprintf(b, "NEW: localSocks[%d] = [%d]", streamID, localSocks[streamID]);
 				concurrencyPrint(b);
 				/////////////////////////////////////////////
 	    		packet.buildNew(streamID, client.getPayload(), client.getSize());
-				packet.write();
+				writeToNetwork(packet);
 				/////////////////////////////////////////////
 				return;
 	    	}	    
@@ -316,21 +319,18 @@ void proxyServerHandler(){
 
 	struct sockaddr_in addr;
     socklen_t len = sizeof(struct sockaddr_in);
-	int one = 1, server = -1, client = 0;
+	int server = -1, client = 0;
     while (server < 0){
-		putchar('h');
     	sleep(1);
     	server = tcpServerSocket(9999);
     }
 
     while (1){
-		putchar('i');
+		//putchar('i');
         client = accept(server, (struct sockaddr*) &addr, &len);
         if (client < 0) {
             close(client);
         } else {
-			//setsockopt(server, SOL_TCP, TCP_NODELAY, &one, sizeof(one));
-        	//setsockopt(client, SOL_TCP, TCP_NODELAY, &one, sizeof(one));
 			proxyServerProcedure(client);
         }
     }
@@ -350,8 +350,8 @@ void forwardingHandler(int direction){
 	}
 
     while (n){
-		putchar('j');
-    	if (packet.read() > 0){
+		//putchar('j');
+    	if (readFromNetwork(packet) > 0){
 			streamID = 0;
 		    result = packet.getNextDirection();//caso seja para encaminhar faz aqui a alteracao do salto
 		    streamID = packet.getStreamID();
@@ -360,14 +360,14 @@ void forwardingHandler(int direction){
 
 	        switch(result){
 		       	case 0:{//é para encaminhar  
-		            packet.write();
+		            writeToNetwork(packet);
 		            break;
 				}
 		        case 1:{//new exitSocket
 					pair<unsigned int,short> r(invertCircuit(p.first), streamID);
 		            int webSocket = webConnect(payload);
 		            if (webSocket > 0){
-                        if ((streamIdentifier[p] = findEmpty(exitSocks, webSocket)) != -1){
+                        if ((streamIdentifier[p] = findEmpty(exitSocks, exitMutex, webSocket)) != -1){
                             pathIdentifier[streamIdentifier[p]] = r;
 
 							sprintf(b, "NEW: exitSocks[%d] = [%d]", p.second, exitSocks[streamIdentifier[p]]);
@@ -375,7 +375,7 @@ void forwardingHandler(int direction){
 
 							/////////////////////////////////////////////
                     		packet.buildResponse(streamID, r.first, true);
-                    		packet.write();
+                    		writeToNetwork(packet);
 							/////////////////////////////////////////////
 							
 							exitSlaves.sendWork(streamIdentifier[p]);
@@ -389,7 +389,7 @@ void forwardingHandler(int direction){
 
 					/////////////////////////////////////////////
 					packet.buildResponse(streamID, r.first, false);
-					packet.write();
+					writeToNetwork(packet);
 					/////////////////////////////////////////////
 		            break;
 		        }
@@ -459,7 +459,7 @@ void forwardingHandler(int direction){
 
 			neighbors[direction] = -1;
 			availableNeighbor[direction] = 0;
-			
+			//crypto[direction] =
 			//Crypto==0
 			//free keys
 			
@@ -473,26 +473,44 @@ void forwardingHandler(int direction){
     }
 }
 
+void printKey(byte* key, int len){
+	for (size_t i = 0; i < len; i++){
+		printf("%02x", key[i]);
+	}
+	printf("\n");
+}
+
 void manageConnections(int nc){
-	byte buffer[MANAGERPACKET];
+	byte buffer[PKPCKTSIZE];
+	byte key[91];
 
 	struct sockaddr_in clientAddr;
     socklen_t addrLen = sizeof(struct sockaddr_in);
-	int client = -1, server = tcpServerSocket(8888);
+	int client = -1, server = tcpServerSocket(8888), dir;
 	
 	while (nc){
-		putchar('k');
+		//putchar('k');
 		client = accept(server, (struct sockaddr*) &clientAddr, &addrLen);
 		if (client > 0){
-			if ((recv(client, buffer, MANAGERPACKET, 0)) > 0){
-				if (buffer[0] < 4) {
-					availableNeighbor[buffer[0]] = 1;
-					neighbors[buffer[0]] = client;
+			if ((recv(client, buffer, PKPCKTSIZE, 0)) > 0){
+				dir = buffer[0];
+				if (dir < 4) {
+					availableNeighbor[dir] = 1;
+					neighbors[dir] = client;
 
-					//crypto
-					//send public
+					crypto[dir] = new Criptography();
+					memcpy(key, &buffer[1], 91);
 
-					neighborSlaves.sendWork(buffer[0]);
+					byte* pk = crypto[dir]->getPublicKey();
+
+					memcpy(buffer, pk, crypto[dir]->publicKeySize);
+					send(neighbors[dir], buffer, PKPCKTSIZE, 0);
+
+					crypto[dir]->deriveShared(key);
+					
+					neighborSlaves.sendWork(dir);
+					
+					printKey(crypto[dir]->getSharedKey(), crypto[dir]->sharedKeySize);
 					nc--;
 					continue;
 				}
@@ -506,7 +524,8 @@ void manageConnections(int nc){
 
 void* Manager(void* null){
     int nc = 0;
-
+	byte buffer[PKPCKTSIZE];
+	byte key[91];
 	manager.connectToManager();
 
 	manager.buildRegisterPacket(nodeID);
@@ -515,9 +534,9 @@ void* Manager(void* null){
 	type = 1;
 
 	while (type){
-		putchar('l');
+		//putchar('l');
 		while (manager.read() > 0){
-			putchar('m');
+			//putchar('m');
 			switch (manager.checkPacket()){
 				case 2:{
 					type = manager.getNodeType();
@@ -538,10 +557,20 @@ void* Manager(void* null){
 						if ((neighbors[d] = tcpClientSocket(manager.getNeighborIp(), 8888)) > 0){
 							//getpublic and send
 							availableNeighbor[d] = 1;
-							send(neighbors[d], &dir, 1, 0);
+							crypto[d] = new Criptography();
+							buffer[0] = dir;
+							
+							byte* pk = crypto[d]->getPublicKey();
+							memcpy(&buffer[1], pk, crypto[d]->publicKeySize);
+							send(neighbors[d], buffer, PKPCKTSIZE, 0);
 
-							//recv pub
-							//derive
+							recv(neighbors[d], buffer, PKPCKTSIZE, 0);
+							memcpy(key, buffer, 91);
+
+							crypto[d]->deriveShared(key);
+
+							printKey(crypto[d]->getSharedKey(), crypto[d]->sharedKeySize);
+
 							neighborSlaves.sendWork(d);
 						}
 						//neighbor inexistent
@@ -560,6 +589,8 @@ void* Manager(void* null){
 }
 
 void handler(int sig){
+	if (sig == 13)
+		puts("SIGPIPE");
 	return;
 }
 

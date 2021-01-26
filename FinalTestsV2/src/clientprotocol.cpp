@@ -137,10 +137,10 @@ byte invertDirection(byte dir){
 
 byte invertCircuit(byte circuit){
     byte inverse = 0;
-    inverse = invertDirection(circuit>>6 & 0x03) << 2;
-    inverse |= invertDirection(circuit>>4 & 0x03) << 4;
     inverse |= invertDirection(circuit>>2 & 0x03) << 6;
-
+    inverse |= invertDirection(circuit>>4 & 0x03) << 4;
+    inverse |= invertDirection(circuit>>6 & 0x03) << 2;
+    
     // inverse |= (vector>>16 & 0x03);
     // inverse |= (vector>>24 & 0x03)<<8;
     // inverse |= (vector & 0x03)<<16;
@@ -156,7 +156,7 @@ namespace std{
     byte ClientProtocol::getRandomDirection(byte hop){
         int i = random(4);
         while(!availableNeighbor[i] || listenDirection == i){
-            printf("a");
+            //printf("a");
             i = random(4);
         }
         byte dir = i;

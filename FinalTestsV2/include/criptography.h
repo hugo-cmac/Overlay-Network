@@ -9,6 +9,8 @@
 #include <openssl/ec.h>
 #include <openssl/pem.h>
 
+#define PKPCKTSIZE 92
+
 namespace std{
 
     class Criptography{

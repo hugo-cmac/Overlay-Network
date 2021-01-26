@@ -8,8 +8,9 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <unistd.h>
+#include <string.h>
 
-#define MAXFDS  128
+#define MAXFDS  256
 
 int tcpServerSocket(int port);
 

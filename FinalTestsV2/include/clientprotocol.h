@@ -10,6 +10,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
+
 //Protocol
 //   6bit    2bits | 2bits     1bits(0/1)      5bits    |   3bits         13bits      |    Resto
 // <circuit> <hop> | <new>        NULL       <streamID> | <streamID>  <PayloadLength> |  <Payload>
@@ -19,8 +20,8 @@
 
 typedef unsigned char byte;
 
-#define PACKET  512
-#define PAYLOAD 508
+#define PACKET  1024
+#define PAYLOAD 1020
 
 enum DIRECTION {
     UP = 0,

@@ -97,6 +97,8 @@ int tcpClientSocketIPv6(unsigned char* ip, int port){
     struct sockaddr_in6 addr;
     addr.sin6_family = AF_INET6;
     addr.sin6_port = htons(port);
+    memcpy(addr.sin6_addr.s6_addr, ip, 16);
+    
     inet_pton(AF_INET6, (const char*) ip, &addr.sin6_addr);
 
     if (connect(s, (struct sockaddr *)&addr, sizeof(addr)) < 0){
