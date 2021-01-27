@@ -40,6 +40,8 @@ namespace std{
         publicKey = extractPublicKey(privateKey);
     };
 
+    Criptography::~Criptography(){};
+
     unsigned char* Criptography::getPublicKey(){
         unsigned char* pk = NULL;
         publicKeySize = i2d_PUBKEY(publicKey, &pk);

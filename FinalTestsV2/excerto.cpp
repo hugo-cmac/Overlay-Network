@@ -10,18 +10,13 @@
 #include <sys/stat.h>
 #include <netdb.h>
 #include <unistd.h>
-#include <sys/select.h>
-#include <arpa/inet.h>
-#include <netinet/tcp.h>
-#include <string.h>
-#include <signal.h>
-#include <poll.h>
+
 
 using namespace std;
 
 template <typename T> class PriorityQueue {
     typedef struct List{
-        T* value;
+        T value;
         int n;
         struct List* next;
     }list;
@@ -31,7 +26,7 @@ template <typename T> class PriorityQueue {
     public:
         PriorityQueue(){};
         
-        void push(T* value, int n){
+        void push(T value, int n){
             list* temp = (list*) malloc(sizeof(list));
             temp->value = value;
             temp->n = n;
@@ -63,11 +58,11 @@ template <typename T> class PriorityQueue {
             }               
         }
 
-        T* pop(){
+        T pop(){
             if (head != NULL){
                 list* temp = head;
                 head = head->next;
-                T* t = temp->value;
+                T t = temp->value;
                 free(temp);
                 return t;
             }
@@ -86,7 +81,7 @@ template <typename T> class PriorityQueue {
 
 int main(int argc, char const *argv[]){
 
-    PriorityQueue<int> lost;
+    PriorityQueue<int*> lost;
 
     int* n1 = (int*) malloc(sizeof(int));
     

@@ -20,8 +20,8 @@ namespace std{
 
             unsigned char* skey = NULL;
             
-            EVP_PKEY *privateKey = NULL;
-            EVP_PKEY *publicKey = NULL;
+            EVP_PKEY* privateKey = NULL;
+            EVP_PKEY* publicKey = NULL;
 
 
             EVP_PKEY* generateKey();
@@ -33,6 +33,8 @@ namespace std{
             size_t sharedKeySize = 0;
 
             Criptography();
+
+            ~Criptography();
 
             //return pk pointer
             unsigned char* getPublicKey();

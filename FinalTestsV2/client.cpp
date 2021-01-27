@@ -3,7 +3,7 @@
 #include <map>
 
 #include <fcntl.h>
- #include <signal.h>
+#include <signal.h>
 
 #include "clientprotocol.h"
 #include "criptography.h"
@@ -459,9 +459,8 @@ void forwardingHandler(int direction){
 
 			neighbors[direction] = -1;
 			availableNeighbor[direction] = 0;
-			//crypto[direction] =
-			//Crypto==0
-			//free keys
+
+			delete crypto[direction];
 			
 			manager.connectToManager();
 
@@ -474,7 +473,7 @@ void forwardingHandler(int direction){
 }
 
 void printKey(byte* key, int len){
-	for (size_t i = 0; i < len; i++){
+	for (int i = 0; i < len; i++){
 		printf("%02x", key[i]);
 	}
 	printf("\n");

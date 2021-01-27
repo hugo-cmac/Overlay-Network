@@ -17,19 +17,18 @@
 #include <signal.h>
 #include <poll.h>
 
-
+#include "criptography.h"
+#include "tcp.h"
+#include "threadpool.h"
 
 using namespace std;
 
 typedef unsigned char byte;
 
-#define MAXFDS  32
 #define PACKET  1024
 #define PAYLOAD 1022
 #define MANAGERPACKET 128
 
-
-struct pollfd nodesfds[MAXFDS] ={0};
 
 enum DIRECCION {
     UP = 0,
@@ -62,88 +61,68 @@ typedef struct Coordinate{
     
 }coordinates;
 
-class ThreadPool{
-	typedef struct Node{
-		int index;
-		struct Node* next;
-	}node;
 
-	typedef void (*funcPtr) (int);
+template <typename T> class PriorityQueue {
+    typedef struct List{
+        T value;
+        int n;
+        struct List* next;
+    }list;
+    
+    private:
+       list* head = NULL;
+    public:
+        PriorityQueue(){};
+        
+        void push(T value, int n){
+            list* temp = (list*) malloc(sizeof(list));
+            temp->value = value;
+            temp->n = n;
+            temp->next = NULL;
 
-	private:
-		node* head = NULL;
-		funcPtr work = NULL;
+            if (head == NULL){
+                head = temp;
+                head->next = NULL;
 
-		pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;								//
-		pthread_cond_t cond = PTHREAD_COND_INITIALIZER;	
-		pthread_t  *slave;	
+            }else{
+                list* now = head;
+                list* prev = NULL;
 
-		void push(int index){
-			node* n = (node*)malloc(sizeof(node));
-			n->index = index;
-			n->next = NULL;
-			if (head == NULL){
-				head = n;
-				return;
-			}else{
-				node* x = head;
-				while(x->next != NULL){
-					x = x->next;
-				}
-				x->next = n;
-			}
-		}
+                while (now != NULL && now->n > n){//percorrer alertas
+                    prev = now;
+                    now = now->next;
+                }
+                if (now == NULL) {//final da lista
+                    prev->next = temp;
+                }else{
+                    if(prev != NULL){//meio da lista
+                        temp->next = now;
+                        prev->next = temp;
+                    }else{//inicio da lista
+                        temp->next = head;
+                        head = temp;
+                    }
+                }
+            }               
+        }
 
-		int pop(){
-			if (head == NULL){
-				return -1;
-			} else {
-				node* n = head;
-				head = head->next;
-				int s = n->index;
-				free(n);
-				return s;
-			}
-		}
+        T pop(){
+            if (head != NULL){
+                list* temp = head;
+                head = head->next;
+                T t = temp->value;
+                free(temp);
+                return t;
+            }
+            return NULL;
+        }
 
-		void* pool(){
-			int index;
+        bool empty(){
+            if (head == NULL)
+                return true;
+            return false;
+        }
 
-			while (1){
-				pthread_mutex_lock(&mutex);
-				if ((index = pop()) == -1){
-					pthread_cond_wait(&cond, &mutex);
-
-					index = pop();
-				}
-			    pthread_mutex_unlock(&mutex);
-
-			    if (index != -1){
-			    	work(index);
-			    }
-			}
-		}
-
-		static void* jumpto(void* Object){
-			return ((ThreadPool*)Object)->pool();
-		}
-
-	public:
-		void init(int nthreads, void* t, void (*func)(int)){
-			slave = (pthread_t*) malloc(nthreads*sizeof(pthread_t));
-			work = func;
-			for (int i = 0; i < nthreads; ++i){
-				pthread_create(&slave[i], NULL, jumpto, (void*) t);
-				pthread_detach(slave[i]);
-			}
-		}
-
-		void sendWork(int index){
-			pthread_mutex_lock(&mutex);
-			push(index);
-			pthread_cond_signal(&cond);
-			pthread_mutex_unlock(&mutex);
-		}
 };
 
 class Node{
@@ -190,17 +169,15 @@ class Matrix{
 
         map<uint16_t, Node*> nodeList;
         map<coordinates, uint16_t> matrix;
-
-        //stack<uint8_t> neighbors;
         
-        stack<Node*> lost;
+        PriorityQueue <Node*> lost;
 
         byte buffer[MANAGERPACKET] = {0};
 
         pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
         
         int setNode(Node* node, unsigned int ip){
-            int nc = 0, id = 0, i = 0;
+            int id = 0, i = 0;
             stack<pair<int, int>> neighbors;
 
             memset(buffer, 0, MANAGERPACKET);
@@ -210,10 +187,11 @@ class Matrix{
             buffer[1] = node->type;
 
             while (i < 4){
-                if (id = getNeighbor(i, node->coord))
+                if ((id = getNeighbor(i, node->coord)))
                     neighbors.push(make_pair(i, id));
                 i++;
             }
+
             node->neighbors = 0;
             printf("Numero de vizinhos %ld\n", neighbors.size());
             buffer[2] = neighbors.size();
@@ -328,11 +306,10 @@ class Matrix{
             
             if (!lost.empty()){
                 printf("Take over %d\n", id);
-                Node* n = lost.top();
+                Node* n = lost.pop();
                 n->update(id, socket);
 
                 if (setNode(n, ip)){
-                    lost.pop();
                     nodeList[id] = n;
                     matrix[n->coord] = id;
                 }
@@ -357,10 +334,10 @@ class Matrix{
                 printf("Node %d lost\n", id);
                 
                 //backup
-                lost.push(nodeList[id]);
+                //lost.push(nodeList[id]);
                 //new
-                //Node *n = nodeList[id];
-                //list.push(n, n->neighbors);
+                Node *n = nodeList[id];
+                lost.push(n, n->neighbors);
                 
                 matrix[nodeList[id]->coord] = 0;
                 nodeList.erase(id);
@@ -407,40 +384,6 @@ class Matrix{
 
 Matrix matrix;
 
-int tcpServerSocket(int port){
-    int s = socket(AF_INET, SOCK_STREAM, 0);
-    int one = 1;
-    if (s < 0){
-    	puts("Error: openning Socket descriptor     \n");
-        return -1;
-    }
-
-    struct sockaddr_in addr = {AF_INET, htons(port)};
-    addr.sin_addr.s_addr = INADDR_ANY;
-
-    if (bind( s, (struct sockaddr *) &addr, sizeof(addr)) < 0){
-    	close(s);
-    	puts("Error: port binding                   \n");
-        return -1;
-    }
-    if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) < 0) {
-		close(s);
-		puts("Error: SO_REUSEADDR                   \n");
-		return -1;
-	}
-    if (setsockopt(s, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one)) < 0) {
-		close(s);
-		puts("Error: SO_REUSEPORT");
-		return -1;
-	}
-    if (listen(s, MAXFDS) < 0){
-        close(s);
-        puts("Error: listen                         \n");
-        return -1;
-    }
-    return s;  
-}
-
 void clientHandler(int sock){
     byte buffer[MANAGERPACKET] = {0};
     int n = 1, id = 0;;
@@ -464,15 +407,14 @@ void clientHandler(int sock){
     }
 }
 
-int main(int argc,char** argv){    
+int main(){    
     int client, manager, n = 1;
 
-    struct sockaddr_in addr = {0};
+    struct sockaddr_in addr;
     socklen_t len = sizeof(addr);
 
     ThreadPool slaves;
     slaves.init(20, (void*) &slaves, clientHandler);
-
 
     unsigned char buffer[MANAGERPACKET];
     while ((manager = tcpServerSocket(7777)) < 0)

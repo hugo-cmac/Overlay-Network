@@ -1,31 +1,29 @@
 CC=g++
-CFLAGS=-W -Wall -Wextra -I./include -pthread -lssl -lcrypto
-CFLAGS2=-W -Wall -Wextra -pthread
-BINS=client
-BINS2=manager
-OBJS=client.o \
+CFLAGS=-W -Wall -Wextra -O3 -I./include -pthread -lssl -lcrypto
+BINSC=client
+BINSM=manager
+OBJSC=client.o \
 	src/criptography.o \
 	src/clientprotocol.o \
 	src/managerprotocol.o \
 	src/socks.o \
 	src/tcp.o \
 	src/threadpool.o
-	
-OBJS2= manager.o
+OBJSM= manager.o \
+	src/criptography.o \
+	src/tcp.o \
+	src/threadpool.o
 
-all: $(BINS) $(BINS2)
+all: $(BINSC) $(BINSM)
 
-client: $(OBJS)
+client: $(OBJSC)
+	$(CC) -o $@ $^ $(CFLAGS)
+
+manager: $(OBJSM) 
 	$(CC) -o $@ $^ $(CFLAGS)
 
 %.o: %.cpp
 	$(CC) -c -o $@ $^ $(CFLAGS)
-	
-manager:$(OBJS2) 
-	$(CC) $(CFLAGS2) -o $@ $^
-	
-manager.o: manager.cpp
-	$(CC) $(CFLAGS) -c -o $@ $^
 
 clean:
-	rm -rf $(BINS) $(BINS2) $(OBJS) $(OBJS2)
+	rm -rf $(BINSC) $(BINSM) $(OBJSC) $(OBJSM)
