@@ -7,17 +7,26 @@
 
 #include "tcp.h"
 
-//	  1byte		 |          2bytes
-// 	<Register>	 |	      <clientID>
-//               |
-//               |      1bytes(2/3/4/0)	      |		     1byte
-// 	<Approval>	 |	  <Type/Not accepted>     |  <Nr Awaited Connections>
+//	  1byte		 |          2bytes            |         91bytes
+// 	<Register>	 |	      <clientID>          |       <public key>
+//               |                            |
+//               |      1bytes(2/3/4/0)	      |		     1byte              |     91bytes
+// 	<Approval>	 |	  <Type/Not accepted>     |  <Nr Awaited Connections>   |   <public key>
 //               |                            |
 //               |       1byte(0/1/2/3)       |          4bytes
 // <Connect new> |        <direction>         |           <IP>    
 //               |                            |
 //               |                            |          2bytes
 //  <Patch up>   |        <direction>         |        <clientID> 
+
+//Between peers
+//Packet -  Connection Request
+//    1byte    |     91bytes
+//    <dir>    |   <public key>
+
+//Packet -  Connection Response
+//    91bytes     |
+//  <public key>  |
 
 #define MANAGERPACKET 128
 
